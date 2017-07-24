@@ -73,6 +73,7 @@ public class Task {
 
     public Observable<Response> getObservable(Context context, String path, Logger logger, DataKitManager dataKitManager, Conditions conditions, Response response) {
         path+="/"+id;
+        logger.write(path,"starts");
         ArrayList<Observable<Response>> observables = new ArrayList<>();
         Observable<Response> observableNotification = new Notifications().getObservable(context, path, logger, dataKitManager, conditions, notifications);
         Observable<Response> observableApplication = new Applications().getObservable(context, path, logger, dataKitManager, conditions, applications);
@@ -87,6 +88,7 @@ public class Task {
                 .flatMap(new Func1<Response, Observable<Response>>() {
                     @Override
                     public Observable<Response> call(Response s) {
+                        logger.write(finalPath,"response="+response);
                         return Observable.just(new Response(id,s.getInput(), s.getDataType()));
                     }
                 });

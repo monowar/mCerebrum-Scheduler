@@ -96,8 +96,8 @@ public class Rules {
                         if (!isValidRange(finalPath, logger, blockTime, index))
                             return Observable.just(null);
                         triggerTime = getTriggerTime(finalPath+"/"+String.valueOf(integer), logger, index, blockTime);
+                        logger.set(finalPath, logger.getInt(finalPath) + 1);
                         if (triggerTime >0) {
-                            logger.set(finalPath, logger.getInt(finalPath) + 1);
                             return Observable.just(Observable.just(rules[curIndex]).delay(triggerTime, TimeUnit.MILLISECONDS).toBlocking().single());
                         }
                         else

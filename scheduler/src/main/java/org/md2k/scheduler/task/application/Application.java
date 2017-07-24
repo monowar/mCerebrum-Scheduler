@@ -91,6 +91,7 @@ public class Application {
                     stop(context, myReceiver[0]);
                     if (throwable instanceof TimeoutException) {
                         logger.write(finalPath, "stop (status=timeout)");
+                        sendStopNotification(context);
                         if (type.trim().toUpperCase().equals("EMA")) {
                             DataType dataType = createEMAData("timeout", time, null);
                             return Observable.just(new Response(null, "timeout", dataType));
@@ -108,6 +109,13 @@ public class Application {
                     stop(context, myReceiver[0]);
                 });
 
+    }
+    private void sendStopNotification(Context context) {
+        Intent intent = new Intent();
+        intent.setAction("org.md2k.ema.operation");
+        intent.putExtra("TYPE", "TIMEOUT");
+        intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
+        context.sendBroadcast(intent);
     }
 
     private DataType createEMAData(String status, long[] time, JsonArray jsonArray) {

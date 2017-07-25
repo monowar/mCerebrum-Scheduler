@@ -37,9 +37,6 @@ import org.md2k.scheduler.exception.DataKitAccessError;
 import org.md2k.scheduler.task.Response;
 
 import rx.Observable;
-import rx.Subscriber;
-import rx.functions.Action0;
-import rx.functions.Action1;
 import rx.functions.Func1;
 
 public class Save {

@@ -26,18 +26,6 @@ package org.md2k.scheduler.task;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import android.content.Context;
-
-import org.md2k.scheduler.Logger;
-import org.md2k.scheduler.action.State;
-import org.md2k.scheduler.condition.Conditions;
-import org.md2k.scheduler.datakit.DataKitManager;
-import org.md2k.scheduler.exception.ConfigurationFileFormatError;
-
-import java.util.ArrayList;
-
-import rx.Observable;
-
 public class Tasks {
     private Task[] tasks;
     public Tasks(Task[] tasks){

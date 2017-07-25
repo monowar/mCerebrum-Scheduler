@@ -98,7 +98,7 @@ public class Rules {
                         triggerTime = getTriggerTime(finalPath+"/"+String.valueOf(integer), logger, index, blockTime);
                         logger.set(finalPath, logger.getInt(finalPath) + 1);
                         if (triggerTime >0) {
-                            return Observable.just(Observable.just(rules[curIndex]).delay(triggerTime, TimeUnit.MILLISECONDS).toBlocking().single());
+                            return Observable.just(rules[curIndex]).delay(triggerTime, TimeUnit.MILLISECONDS);
                         }
                         else
                             return Observable.just(rules[curIndex]);

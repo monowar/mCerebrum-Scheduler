@@ -95,37 +95,27 @@ public class When {
                         String blockStart = DateTime.convertTimeStampToDateTime(blockTime[0]);
                         return new Rules(rules).getObservable(finalPath+"/"+blockStart, logger, isRunning, dataKitManager, conditions, blockTime);
                     }
-                }).onErrorReturn(new Func1<Throwable, Long[]>() {
-                    @Override
-                    public Long[] call(Throwable throwable) {
-                        return null;
-                    }
-                }).filter(longs -> {
-                    return longs != null;
-                });
+                }).onErrorReturn(throwable -> null).filter(longs -> longs != null);
         if (repeat != null && startTime != -1) {
 //                while (repeatTime <= curTime)
 //                    repeatTime += repeatWhen;
 //                long finalRepeatTime = repeatTime;
-                observable = observable.repeatWhen(new Func1<Observable<? extends Void>, Observable<?>>() {
-                    @Override
-                    public Observable<?> call(Observable<? extends Void> observable1) {
+                observable = observable.repeatWhen(observable1 -> {
 //                        System.out.println(finalPath+": delay="+(finalRepeatTime-curTime)/1000);
-                        return observable1
-                                .flatMap((Func1<Void, Observable<?>>) new Func1<Void, Observable<?>>() {
-                                    @Override
-                                    public Observable<?> call(Void aVoid) {
-                                        long repeatWhen=DateTime.getTimeInMillis(repeat);
-                                        long curTime=DateTime.getDateTime();
-                                        startTime+=repeatWhen;
-                                        if(startTime<=curTime)  return Observable.just(null);
-                                        else{
-                                            logger.write(finalPath, "trigger again at=" + DateTime.convertTimeStampToDateTime(startTime));
-                                            return Observable.just((Long[]) null).delay(startTime-curTime, TimeUnit.MILLISECONDS);
-                                        }
+                    return observable1
+                            .flatMap((Func1<Void, Observable<?>>) new Func1<Void, Observable<?>>() {
+                                @Override
+                                public Observable<?> call(Void aVoid) {
+                                    long repeatWhen=DateTime.getTimeInMillis(repeat);
+                                    long curTime=DateTime.getDateTime();
+                                    startTime+=repeatWhen;
+                                    if(startTime<=curTime)  return Observable.just(null);
+                                    else{
+                                        logger.write(finalPath, "trigger again at=" + DateTime.convertTimeStampToDateTime(startTime));
+                                        return Observable.just((Long[]) null).delay(startTime-curTime, TimeUnit.MILLISECONDS);
                                     }
-                                });
-                    }
+                                }
+                            });
                 });
         }
         return observable;
@@ -179,7 +169,7 @@ public class When {
                     if (blockTime[1] > currentTime) {
 
                         logger.write(finalPath, "block_start=" + DateTime.convertTimeStampToDateTime(blockTime[1])+", block_end=" + DateTime.convertTimeStampToDateTime(blockTime[2])+", wait="+(blockTime[1]-currentTime)/(1000)+ " second");
-                        return Observable.just(blockTime).delay(blockTime[1] - currentTime, TimeUnit.MILLISECONDS)/*.toBlocking().single()*/;
+                        return Observable.just(blockTime).delay(blockTime[1] - currentTime, TimeUnit.MILLISECONDS);
                     } else {
                         return Observable.just(blockTime);
                     }

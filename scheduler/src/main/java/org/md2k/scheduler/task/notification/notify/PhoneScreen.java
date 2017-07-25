@@ -9,6 +9,7 @@ import org.md2k.scheduler.task.notification.Notification;
 import java.util.concurrent.TimeUnit;
 
 import rx.Observable;
+import rx.functions.Action0;
 import rx.functions.Func1;
 
 /*
@@ -44,27 +45,29 @@ public class PhoneScreen {
     Observable<String> getObservable(Context context, Notification notification){
         long interval = DateTime.getTimeInMillis(notification.getInterval());
         int repeat = notification.getRepeat();
+        long startTime = DateTime.getDateTime();
+
         return Observable.from(notification.getWhen())
-                .flatMap(new Func1<String, Observable<Boolean>>() {
+                .map(s -> {
+                    long delayOffset = DateTime.getTimeInMillis(s);
+                    return (startTime + delayOffset) - DateTime.getDateTime();
+                }).flatMap(new Func1<Long, Observable<Long>>() {
                     @Override
-                    public Observable<Boolean> call(String s) {
-                        return getObservableDelay(s);
-                    }
-                }).flatMap(new Func1<Boolean, Observable<Integer>>() {
-                    @Override
-                    public Observable<Integer> call(Boolean aBoolean) {
-                        return Observable.range(1, repeat);
+                    public Observable<Long> call(Long delay) {
+                        if(delay<=0L) delay=1L;
+                        return Observable.interval(delay,interval, TimeUnit.MILLISECONDS).takeWhile(aLong -> {
+                            if(aLong<repeat) return true;
+                            else return false;
+                        });
                     }
                 }).map(integer -> {
                     if(integer%2==1) screenOn(context);
                     else
                         screenOff();
                     return "";
-                }).map(new Func1<String, String>() {
-                    @Override
-                    public String call(String s) {
-                        return Observable.just(s).delay(interval, TimeUnit.MILLISECONDS).toBlocking().single();
-                    }
+                }).onErrorReturn(throwable -> {
+                    screenOff();
+                    return null;
                 }).filter(s -> false).doOnError(throwable -> screenOff()).doOnUnsubscribe(this::screenOff);
     }
     private void screenOn(Context context){
@@ -77,11 +80,4 @@ public class PhoneScreen {
             wl.release();
         wl=null;
     }
-    private Observable<Boolean> getObservableDelay(String str) {
-        long delay = DateTime.getTimeInMillis(str);
-        if(delay<=0) return Observable.just(true);
-        else
-        return Observable.just(Observable.just(true).delay(delay, TimeUnit.MILLISECONDS).toBlocking().single());
-    }
-
 }

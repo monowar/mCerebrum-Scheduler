@@ -26,15 +26,15 @@ package org.md2k.scheduler.action;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-public class Transition {
+class Transition {
     private String current_state;
     private String input;
     private String next_state;
-    public boolean isEqual(String state, String in) {
+    boolean isEqual(String state, String in) {
         return state.trim().toUpperCase().equals(current_state.trim().toUpperCase()) && in.trim().toUpperCase().equals(input.trim().toUpperCase());
     }
 
-    public String getNext_state() {
+    String getNext_state() {
         return next_state;
     }
 }

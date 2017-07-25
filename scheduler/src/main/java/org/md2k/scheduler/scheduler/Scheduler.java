@@ -46,6 +46,8 @@ import rx.Observable;
 import rx.Observer;
 import rx.Subscriber;
 import rx.Subscription;
+import rx.functions.Action0;
+import rx.functions.Action1;
 import rx.functions.Func1;
 import rx.schedulers.*;
 
@@ -63,8 +65,9 @@ public class Scheduler {
 
 
     private void stop() {
-        if(subscription!=null && !subscription.isUnsubscribed())
+        if(subscription!=null && !subscription.isUnsubscribed()) {
             subscription.unsubscribe();
+        }
     }
 
     private void start(Context context, String path, Logger logger, AtomicBoolean isRunning, DataKitManager dataKitManager, Conditions conditions, Tasks tasks, Actions actions, Subscriber subscriber) {
@@ -76,28 +79,26 @@ public class Scheduler {
                         try {
                             logger.write(path, "valid block, block_start=" + DateTime.convertTimeStampToDateTime(blockTime[1])+", block_end=" + DateTime.convertTimeStampToDateTime(blockTime[2]));
                             isRunning.set(true);
-                            return new WhatManager().getObservable(context, path, logger, dataKitManager, conditions, what, actions, tasks).doOnCompleted(()->isRunning.set(false)).doOnUnsubscribe(()->isRunning.set(false));
+                            return new WhatManager().getObservable(context, path, logger, dataKitManager, conditions, what, actions, tasks);
                         } catch (ConfigurationFileFormatError | DataKitAccessError e) {
-                            isRunning.set(false);
-                            Observable.error(e);
+                            return Observable.error(e);
                         }
-                        return null;
                     }
-                })
+                }).doOnUnsubscribe(() -> isRunning.set(false))
                 .subscribe(new Observer<Boolean>() {
             @Override
             public void onCompleted() {
-                isActive=false;
+                isActive=false; isRunning.set(false);
             }
 
             @Override
             public void onError(Throwable e) {
-                subscriber.onError(e);
+                isRunning.set(false);subscriber.onError(e);
             }
 
             @Override
             public void onNext(Boolean aBoolean) {
-                subscriber.onNext(aBoolean);
+                isRunning.set(false);subscriber.onNext(aBoolean);
             }
         });
     }

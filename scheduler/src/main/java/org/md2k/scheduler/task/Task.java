@@ -88,7 +88,7 @@ public class Task {
                 .flatMap(new Func1<Response, Observable<Response>>() {
                     @Override
                     public Observable<Response> call(Response s) {
-                        logger.write(finalPath,"response="+response.getInput());
+                        logger.write(finalPath,"response="+s.getInput());
                         return Observable.just(new Response(id,s.getInput(), s.getDataType()));
                     }
                 });

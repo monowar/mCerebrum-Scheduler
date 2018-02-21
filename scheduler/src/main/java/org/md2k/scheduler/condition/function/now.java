@@ -1,22 +1,19 @@
-package org.md2k.scheduler;
-
-import android.os.Environment;
-
-/**
- * Copyright (c) 2015, The University of Memphis, MD2K Center
+package org.md2k.scheduler.condition.function;
+/*
+ * Copyright (c) 2016, The University of Memphis, MD2K Center
  * - Syed Monowar Hossain <monowar.hossain@gmail.com>
  * All rights reserved.
- * <p/>
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * <p/>
+ *
  * * Redistributions of source code must retain the above copyright notice, this
  * list of conditions and the following disclaimer.
- * <p/>
+ *
  * * Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
  * and/or other materials provided with the distribution.
- * <p/>
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -28,10 +25,44 @@ import android.os.Environment;
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-public class Constants {
-    public static final String CONFIG_DIRECTORY= Environment.getExternalStorageDirectory().getAbsolutePath() + "/mCerebrum/org.md2k.scheduler/";
-    public static final String CONFIG_FILENAME = "config_robas.json";
-    public static String SHARED_PREFERENCE="temp_data";
-    public static String INTENT_COMMUNICATION="INTENT_COMMUNICATION";
-    public static String INTENT_COMMUNICATION_STATUS="STATUS";
+
+import android.util.Log;
+
+import com.udojava.evalex.Expression;
+
+
+import org.md2k.scheduler.datakit.DataKitManager;
+
+import java.math.BigDecimal;
+import java.util.Calendar;
+import java.util.List;
+
+public class now extends Function {
+    public now(DataKitManager dataKitManager) {
+        super(dataKitManager);
+    }
+
+    public Expression add(Expression e) {
+        e.addLazyFunction(e.new LazyFunction("now", 0) {
+            @Override
+            public Expression.LazyNumber lazyEval(List<Expression.LazyNumber> lazyParams) {
+                return new Expression.LazyNumber() {
+                    @Override
+                    public BigDecimal eval() {
+                        Calendar c = Calendar.getInstance();
+                        return new BigDecimal(c.getTimeInMillis());
+                    }
+
+                    @Override
+                    public String getString() {
+                        return null;
+                    }
+                };
+            }
+        });
+        return e;
+    }
+    public String prepare(String s){
+        return s;
+    }
 }

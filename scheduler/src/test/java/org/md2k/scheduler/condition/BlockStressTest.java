@@ -1,6 +1,5 @@
-/*
+
 package org.md2k.scheduler.condition;
-*/
 /*
  * Copyright (c) 2016, The University of Memphis, MD2K Center
  * - Syed Monowar Hossain <monowar.hossain@gmail.com>
@@ -26,157 +25,88 @@ package org.md2k.scheduler.condition;
  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *//*
+ */
 
-
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 
 import org.junit.Test;
-import org.md2k.datakitapi.datatype.DataType;
-import org.md2k.datakitapi.datatype.DataTypeJSONObject;
-import org.md2k.datakitapi.datatype.DataTypeLong;
-import org.md2k.datakitapi.source.datasource.DataSource;
-import org.md2k.datakitapi.time.DateTime;
-import org.md2k.scheduler.configuration.Configuration;
-import org.md2k.scheduler.configuration.ConfigurationTest;
-import org.md2k.scheduler.datakit.Data;
-import org.md2k.scheduler.datakit.DataKitManager;
-import org.md2k.scheduler.exception.ConfigurationFileFormatError;
-import org.md2k.scheduler.exception.DataKitAccessError;
-import org.md2k.scheduler.exception.DataSourceNotFound;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
-
-import java.util.ArrayList;
-
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import org.md2k.scheduler.configuration.ConfigurationManager;
 
 public class BlockStressTest {
     @Test
-    public void block1_0() {
-        try {
-            Configuration configuration = new ConfigurationTest().read();
-            DataKitManager dataKitManager=getDataKitManager(-1, 0);
-            Conditions conditions = new Conditions(configuration.getConditions());
-            boolean check1 = conditions.isValid(dataKitManager, "block1_4hour_stress_ema==TRUE");
-            assertFalse(check1);
-        } catch (DataSourceNotFound | DataKitAccessError | ConfigurationFileFormatError dataSourceNotFound) {
-            assertTrue(false);
+    public void a(){
+        String[] f={
+                "contact2.1.1.1.json",
+                "contact2.1.1.2.json",
+                "contact2.1.2.1.json",
+                "contact2.1.2.2.json",
+                "contact2.2.1.1.json",
+                "contact2.2.1.2.json",
+                "contact2.2.2.1.json",
+                "contact2.2.2.2.json",
+                "contact3.1.1.1.json",
+                "contact3.1.1.2.json",
+                "contact3.1.2.1.json",
+                "contact3.1.2.2.json",
+                "contact3.2.1.1.json",
+                "contact3.2.1.2.json",
+                "contact3.2.2.1.json",
+                "contact3.2.2.2.json",
+                "contact3.3.1.1.json",
+                "contact3.3.1.2.json",
+                "contact3.3.2.1.json",
+                "contact3.3.2.2.json",
+                "contact4.1.1.1.json",
+                "contact4.1.1.2.json",
+                "contact4.1.2.1.json",
+                "contact4.1.2.2.json",
+                "contact4.2.1.1.json",
+                "contact4.2.1.2.json",
+                "contact4.2.2.1.json",
+                "contact4.2.2.2.json",
+                "contact4.3.1.1.json",
+                "contact4.3.1.2.json",
+                "contact4.3.2.1.json",
+                "contact4.3.2.2.json",
+                "contact4.4.1.1.json",
+                "contact4.4.1.2.json",
+                "contact4.4.2.1.json",
+                "contact4.4.2.2.json",
+                "contact5.1.1.1.json",
+                "contact5.1.1.2.json",
+                "contact5.1.2.1.json",
+                "contact5.1.2.2.json",
+                "contact5.2.1.1.json",
+                "contact5.2.1.2.json",
+                "contact5.2.2.1.json",
+                "contact5.2.2.2.json",
+                "contact5.3.1.1.json",
+                "contact5.3.1.2.json",
+                "contact5.3.2.1.json",
+                "contact5.3.2.2.json",
+                "contact5.4.1.1.json",
+                "contact5.4.1.2.json",
+                "contact5.4.2.1.json",
+                "contact5.4.2.2.json",
+                "contact5.5.1.1.json",
+                "contact5.5.1.2.json",
+                "contact5.5.2.1.json",
+                "contact5.5.2.2.json",                
+        };
+        for(int i=0;i<f.length;i++){
+            String s="    {\n" +
+                    "      \"id\": \""+f[i].substring(0, f[i].length()-5)+"\",\n" +
+                    "      \"application\": [\n" +
+                    "        {\n" +
+                    "          \"package_name\": \"org.md2k.ema\",\n" +
+                    "          \"timeout\": \"00:10:00\",\n" +
+                    "          \"parameter\": {\n" +
+                    "            \"filename\": \""+f[0]+"\"\n" +
+                    "          }\n" +
+                    "        }\n" +
+                    "      ]\n" +
+                    "    }\n";
+            System.out.println(s);
         }
-    }
-    @Test
-    public void block1_1H_0() {
-        try {
-            Configuration configuration = new ConfigurationTest().read();
-            DataKitManager dataKitManager=getDataKitManager(DateTime.getDateTime()-60*60*1000, 0);
-            Conditions conditions = new Conditions(configuration.getConditions());
-            boolean check1 = conditions.isValid(dataKitManager, "block1_4hour_stress_ema==TRUE");
-            assertTrue(check1);
-        } catch (DataSourceNotFound | DataKitAccessError | ConfigurationFileFormatError dataSourceNotFound) {
-            assertTrue(false);
-        }
-    }
-    @Test
-    public void block1_5H_0() {
-        try {
-            Configuration configuration = new ConfigurationTest().read();
-            DataKitManager dataKitManager=getDataKitManager(DateTime.getDateTime()-5*60*60*1000, 0);
-            Conditions conditions = new Conditions(configuration.getConditions());
-            boolean check1 = conditions.isValid(dataKitManager, "block1_4hour_stress_ema==TRUE");
-            assertFalse(check1);
-        } catch (DataSourceNotFound | DataKitAccessError | ConfigurationFileFormatError dataSourceNotFound) {
-            assertTrue(false);
-        }
-    }
-    @Test
-    public void block1_1H_1() {
-        try {
-            Configuration configuration = new ConfigurationTest().read();
-            DataKitManager dataKitManager=getDataKitManager(DateTime.getDateTime()-60*60*1000, 1);
-            Conditions conditions = new Conditions(configuration.getConditions());
-            boolean check1 = conditions.isValid(dataKitManager, "block1_4hour_stress_ema==TRUE");
-            assertFalse(check1);
-        } catch (DataSourceNotFound | DataKitAccessError | ConfigurationFileFormatError dataSourceNotFound) {
-            assertTrue(false);
-        }
-    }
-    @Test
-    public void block1_2H_3() {
-        try {
-            Configuration configuration = new ConfigurationTest().read();
-            DataKitManager dataKitManager=getDataKitManager(DateTime.getDateTime()-2*60*60*1000, 3);
-            Conditions conditions = new Conditions(configuration.getConditions());
-            boolean check1 = conditions.isValid(dataKitManager, "block1_4hour_stress_ema==TRUE");
-            assertFalse(check1);
-        } catch (DataSourceNotFound | DataKitAccessError | ConfigurationFileFormatError dataSourceNotFound) {
-            assertTrue(false);
-        }
-    }
-    @Test
-    public void block1_P2H_0() {
-        try {
-            Configuration configuration = new ConfigurationTest().read();
-            DataKitManager dataKitManager=getDataKitManager(DateTime.getDateTime()+2*60*60*1000, 0);
-            Conditions conditions = new Conditions(configuration.getConditions());
-            boolean check1 = conditions.isValid(dataKitManager, "block1_4hour_stress_ema==TRUE");
-            assertFalse(check1);
-        } catch (DataSourceNotFound | DataKitAccessError | ConfigurationFileFormatError dataSourceNotFound) {
-            assertTrue(false);
-        }
-    }
-    @Test
-    public void block1_P2H_2() {
-        try {
-            Configuration configuration = new ConfigurationTest().read();
-            DataKitManager dataKitManager=getDataKitManager(DateTime.getDateTime()+2*60*60*1000, 0);
-            Conditions conditions = new Conditions(configuration.getConditions());
-            boolean check1 = conditions.isValid(dataKitManager, "block1_4hour_stress_ema==TRUE");
-            assertFalse(check1);
-        } catch (DataSourceNotFound | DataKitAccessError | ConfigurationFileFormatError dataSourceNotFound) {
-            assertTrue(false);
-        }
-    }
-
-    private DataKitManager getDataKitManager(long dayStart, int ema) throws DataKitAccessError, DataSourceNotFound {
-        DataKitManager dataKitManager= mock(DataKitManager.class);
-        when(dataKitManager.getSample(any(DataSource.class), eq(1))).thenAnswer(new Answer<ArrayList<Data>>() {
-            @Override
-            public ArrayList<Data> answer(InvocationOnMock invocation) throws Throwable {
-                Object[] args = invocation.getArguments();
-                ArrayList<Data> dataTypes= new ArrayList<>();
-                if(((DataSource) args[0]).getType().equals("DAY_START") && dayStart!=-1) {
-                    dataTypes.add(new Data(null, new DataTypeLong(DateTime.getDateTime(), dayStart)));
-                }else{
-//                    dataTypes.add(new Data(null, new DataTypeLong(DateTime.getDateTime(), dayEnd));
-                }
-                return dataTypes;
-            }
-        });
-        when(dataKitManager.getSample(any(DataSource.class), anyLong(),anyLong())).thenAnswer(new Answer<ArrayList<Data>>() {
-            @Override
-            public ArrayList<Data> answer(InvocationOnMock invocation) throws Throwable {
-                Object[] args = invocation.getArguments();
-                ArrayList<Data> dataTypes= new ArrayList<>();
-                if(((DataSource) args[0]).getType().equals("EMA")) {
-                    for(int i=0;i<ema;i++)
-                        dataTypes.add(new Data(null, new DataTypeJSONObject(DateTime.getDateTime(), (JsonObject) new JsonParser().parse("{abc:10}"))));
-                }else{
-//                    dataTypes.add(new Data(null, new DataTypeLong(DateTime.getDateTime(), dayEnd));
-                }
-                return dataTypes;
-            }
-        });
-
-        return dataKitManager;
-
     }
 }
-*/
+

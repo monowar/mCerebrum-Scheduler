@@ -27,14 +27,16 @@ package org.md2k.scheduler.datakit;
  */
 
 import android.content.Context;
+import android.util.SparseArray;
 
 import org.md2k.datakitapi.DataKitAPI;
 import org.md2k.datakitapi.datatype.DataType;
-import org.md2k.datakitapi.datatype.DataTypeStringArray;
+import org.md2k.datakitapi.datatype.DataTypeString;
 import org.md2k.datakitapi.exception.DataKitException;
 import org.md2k.datakitapi.source.datasource.DataSource;
 import org.md2k.datakitapi.source.datasource.DataSourceBuilder;
 import org.md2k.datakitapi.source.datasource.DataSourceClient;
+import org.md2k.datakitapi.time.DateTime;
 import org.md2k.scheduler.exception.DataKitAccessError;
 import org.md2k.scheduler.exception.DataSourceNotFound;
 
@@ -47,6 +49,11 @@ import rx.functions.Func1;
 
 public class DataKitManager {
     private DataKitAPI dataKitAPI;
+    private SparseArray<Boolean> isSubscribed;
+
+    public DataKitManager() {
+        isSubscribed=new SparseArray<>();
+    }
 
     public ArrayList<Data> getSample(DataSource dataSource, int sampleNo) throws DataKitAccessError, DataSourceNotFound {
         ArrayList<Data> data = new ArrayList<>();
@@ -91,8 +98,13 @@ public class DataKitManager {
         }
     }
 
-    private ArrayList<DataSourceClient> find(final DataSource dataSource) throws DataKitException {
-        return dataKitAPI.find(new DataSourceBuilder(dataSource));
+    public ArrayList<DataSourceClient> find(final DataSource dataSource) {
+        try {
+            return dataKitAPI.find(new DataSourceBuilder(dataSource));
+        } catch (DataKitException e) {
+            e.printStackTrace();
+        }
+        return new ArrayList<>();
     }
 
     public Observable<Data> subscribe(DataSource dataSource) {
@@ -104,6 +116,7 @@ public class DataKitManager {
                     if (dataSourceClients.size() == 0) throw new DataSourceNotFound();
                     for (int i = 0; i < dataSourceClients.size(); i++) {
                         int finalI = i;
+                        if(isSubscribed.get(dataSourceClients.get(i).getDs_id())!=null) continue;
                         dataKitAPI.subscribe(dataSourceClients.get(i), dataType -> {
                             Data data =new Data(dataSourceClients.get(finalI), dataType);
                             subscriber.onNext(data);
@@ -131,8 +144,11 @@ public class DataKitManager {
     public void unsubscribe(DataSource dataSource){
         try {
             ArrayList<DataSourceClient> dataSourceClients = find(dataSource);
-            for (int i = 0; i < dataSourceClients.size(); i++)
+            for (int i = 0; i < dataSourceClients.size(); i++) {
                 dataKitAPI.unsubscribe(dataSourceClients.get(i));
+                isSubscribed.remove(dataSourceClients.get(i).getDs_id());
+
+            }
         } catch (DataKitException ignored) {
 
         }
@@ -175,5 +191,38 @@ public class DataKitManager {
         } catch (DataKitException e) {
             throw new DataKitAccessError();
         }
+    }
+
+    public void insertIncentive(double amount) {
+        //TODO: insert incentive
+    }
+
+    public double queryTotalIncentive() {
+        //todo: query incentive
+        return 0;
+    }
+
+    public ArrayList<DataType> query(DataSourceClient dataSourceClient, int i) {
+        try {
+            return dataKitAPI.query(dataSourceClient, i);
+        } catch (DataKitException e) {
+            return new ArrayList<DataType>();
+        }
+    }
+
+    public ArrayList<DataType> query(DataSourceClient dataSourceClient, long sTime, long eTime) {
+        try {
+            return dataKitAPI.query(dataSourceClient, sTime, eTime);
+        } catch (DataKitException e) {
+            return new ArrayList<DataType>();
+        }
+    }
+
+    public void insert(String type, String id, String message) {
+        try {
+            DataSourceBuilder dataSourceBuilder = new DataSourceBuilder().setType(type).setId(id);
+            DataSourceClient d = dataKitAPI.register(dataSourceBuilder);
+            dataKitAPI.insert(d, new DataTypeString(DateTime.getDateTime(), message));
+        }catch (Exception e){}
     }
 }

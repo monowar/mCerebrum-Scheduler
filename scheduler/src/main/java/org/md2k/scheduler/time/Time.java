@@ -41,7 +41,10 @@ public class Time {
     private static final String THURSDAY="THURSDAY";
     private static final String FRIDAY="FRIDAY";
     private static final String SATURDAY="SATURDAY";
-    public static long getTime(String value) throws ConfigurationFileFormatError {
+    public static long getToday(){
+        return DateTime.getTodayAtInMilliSecond("00:00:00");
+    }
+    public static long getTime(String value){
         value=value.trim().toUpperCase();
         if (TIME_NOW.equals(value))
             return DateTime.getDateTime();
@@ -86,7 +89,7 @@ public class Time {
             return Calendar.FRIDAY;
         else if(value.equals(SATURDAY))
             return Calendar.SATURDAY;
-        throw new ConfigurationFileFormatError();
+        return DateTime.getDateTime();
     }
 
 }

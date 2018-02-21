@@ -27,38 +27,46 @@ package org.md2k.scheduler.configuration;
  */
 
 import android.content.Context;
+import android.os.Environment;
 
 import com.google.gson.Gson;
 
+import org.md2k.mcerebrum.commons.storage.Storage;
 import org.md2k.scheduler.exception.ConfigurationFileFormatError;
-import org.md2k.scheduler.exception.ConfigurationFileNotFound;
-import org.md2k.scheduler.exception.ConfigurationFileReadError;
 
 import java.io.BufferedReader;
-import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStreamReader;
 
 public class ConfigurationManager {
-    public Configuration read(Context context, String type, String filePath) throws ConfigurationFileNotFound, ConfigurationFileFormatError, ConfigurationFileReadError {
-        BufferedReader br;
-        Configuration configuration;
+    private static final String CONFIG_DIRECTORY = Environment.getExternalStorageDirectory().getAbsolutePath() + "/mCerebrum/org.md2k.scheduler/";
+    private static final String CONFIG_FILENAME = "config.json";
+
+
+    public static Configuration read() {
         try {
-            if ("ASSET".equals(type))
-                br = new BufferedReader(new InputStreamReader(context.getAssets().open(filePath)));
-            else
-                br = new BufferedReader(new InputStreamReader(new FileInputStream(filePath)));
-        } catch (IOException e) {
-            throw new ConfigurationFileNotFound();
+            return Storage.readJson(CONFIG_DIRECTORY+CONFIG_FILENAME, Configuration.class);
+        } catch (Exception e) {
+            return null;
         }
-        configuration=read(br);
-        try {
-            br.close();
-        } catch (IOException e) {
-            throw new ConfigurationFileReadError();
-        }
-        return configuration;
     }
+
+    public static Configuration readMoffitt(Context context) {
+        try {
+            BufferedReader br = new BufferedReader(new InputStreamReader(context.getAssets().open("config_moffitt.json")));
+            return new Gson().fromJson(br, Configuration.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    public static Configuration readROBAS(Context context) {
+        try {
+            BufferedReader br = new BufferedReader(new InputStreamReader(context.getAssets().open("config_robas.json")));
+            return new Gson().fromJson(br, Configuration.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public Configuration read(BufferedReader br) throws ConfigurationFileFormatError {
         try {
             return new Gson().fromJson(br, Configuration.class);

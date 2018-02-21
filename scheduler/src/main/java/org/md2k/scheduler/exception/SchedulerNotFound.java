@@ -1,22 +1,19 @@
-package org.md2k.scheduler;
-
-import android.os.Environment;
-
-/**
- * Copyright (c) 2015, The University of Memphis, MD2K Center
+package org.md2k.scheduler.exception;
+/*
+ * Copyright (c) 2016, The University of Memphis, MD2K Center
  * - Syed Monowar Hossain <monowar.hossain@gmail.com>
  * All rights reserved.
- * <p/>
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * <p/>
+ *
  * * Redistributions of source code must retain the above copyright notice, this
  * list of conditions and the following disclaimer.
- * <p/>
+ *
  * * Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
  * and/or other materials provided with the distribution.
- * <p/>
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -28,10 +25,10 @@ import android.os.Environment;
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-public class Constants {
-    public static final String CONFIG_DIRECTORY= Environment.getExternalStorageDirectory().getAbsolutePath() + "/mCerebrum/org.md2k.scheduler/";
-    public static final String CONFIG_FILENAME = "config_robas.json";
-    public static String SHARED_PREFERENCE="temp_data";
-    public static String INTENT_COMMUNICATION="INTENT_COMMUNICATION";
-    public static String INTENT_COMMUNICATION_STATUS="STATUS";
+
+public class SchedulerNotFound extends Exception {
+    private static final String SCHEDULER_NOT_FOUND ="Scheduler not found";
+    public SchedulerNotFound() {
+        super(SCHEDULER_NOT_FOUND);
+    }
 }

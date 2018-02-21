@@ -26,119 +26,122 @@ package org.md2k.scheduler.scheduler;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import android.content.Context;
+import android.util.Log;
 
+import org.md2k.datakitapi.source.datasource.DataSource;
 import org.md2k.datakitapi.time.DateTime;
-import org.md2k.scheduler.Logger;
-import org.md2k.scheduler.action.Actions;
-import org.md2k.scheduler.condition.Conditions;
-import org.md2k.scheduler.datakit.DataKitManager;
+import org.md2k.scheduler.State;
+import org.md2k.scheduler.configuration.Configuration;
 import org.md2k.scheduler.exception.ConfigurationFileFormatError;
-import org.md2k.scheduler.exception.DataKitAccessError;
-import org.md2k.scheduler.scheduler.what.What;
-import org.md2k.scheduler.scheduler.what.WhatManager;
-import org.md2k.scheduler.scheduler.when.When;
-import org.md2k.scheduler.task.Tasks;
-
-import java.util.concurrent.atomic.AtomicBoolean;
+import org.md2k.scheduler.listen.ListenData;
+import org.md2k.scheduler.logger.Logger;
+import org.md2k.scheduler.what.WhatManager;
+import org.md2k.scheduler.when.WhenManager;
 
 import rx.Observable;
 import rx.Observer;
-import rx.Subscriber;
 import rx.Subscription;
-import rx.functions.Action0;
-import rx.functions.Action1;
-import rx.functions.Func1;
-import rx.schedulers.*;
 
 public class Scheduler {
-    private String id;
-    private String type;
-    private String title;
-    private String summary;
-    private String description;
-    private String condition;
-    private When when;
-    private What[][] what;
+    private String type, id;
     private Subscription subscription;
-    private boolean isActive;
+    private Configuration.CListen cListen;
+    private WhenManager whenManager;
+    private WhatManager whatManager;
+    private Logger logger;
+    public Scheduler(String type, String id, Configuration.CListen cListen, WhenManager whenManager, WhatManager whatManager, Logger logger) {
+        this.type = type;
+        this.id = id;
+        this.cListen = cListen;
+        this.whenManager = whenManager;
+        this.whatManager = whatManager;
+        this.logger = logger;
+        this.subscription = null;
+    }
 
+    public void restartIfMatch(ListenData listenData){
+        if(listenData==null || isMatch(listenData)){
+            if(subscription==null){
+                logger.write(type+"/"+id,"start()");
+            }else{
+                logger.write(type+"/"+id,"restart()");
+            }
+            stop();
+            start();
+        }
+    }
+    private boolean isMatch(ListenData listenData){
+        switch(listenData.getType()){
+            case TIME:
+                if(cListen.getTime()==null) return false;
+                for(int i=0;i<cListen.getTime().length;i++)
+                    if(cListen.getTime()[i].equals(listenData.getTime())) return true;
+                break;
+            case DATASOURCE:
+                if(cListen.getDatasource()==null) return false;
+                for(int i=0;i<cListen.getDatasource().length;i++){
+                    if(isMatch(cListen.getDatasource()[i], listenData.getDataSource())) return true;
+                }
 
-    private void stop() {
+        }
+        return false;
+    }
+    private boolean isMatch(DataSource a, DataSource b){
+        if(a.getId()!=null && b.getId()==null) return false;
+        if(a.getId()!=null && b.getId()!=null && !a.getId().equals(b.getId())) return false;
+        if(a.getType()!=null && b.getType()==null) return false;
+        if(a.getType()!=null && b.getType()!=null && !a.getType().equals(b.getType())) return false;
+        if(a.getPlatform()!=null && b.getPlatform()==null) return false;
+        if(a.getPlatform()!=null && b.getPlatform()!=null){
+            if(a.getPlatform().getId()!=null && b.getPlatform().getId()==null) return false;
+            if(a.getPlatform().getId()!=null && b.getPlatform().getId()!=null && !a.getPlatform().getId().equals(b.getPlatform().getId())) return false;
+            if(a.getPlatform().getType()!=null && b.getPlatform().getType()==null) return false;
+            if(a.getPlatform().getType()!=null && b.getPlatform().getType()!=null && !a.getPlatform().getType().equals(b.getPlatform().getType())) return false;
+        }
+        if(a.getPlatformApp()!=null && b.getPlatformApp()!=null){
+            if(a.getPlatformApp().getId()!=null && b.getPlatformApp().getId()==null) return false;
+            if(a.getPlatformApp().getId()!=null && b.getPlatformApp().getId()!=null && !a.getPlatformApp().getId().equals(b.getPlatformApp().getId())) return false;
+            if(a.getPlatformApp().getType()!=null && b.getPlatformApp().getType()==null) return false;
+            if(a.getPlatformApp().getType()!=null && b.getPlatformApp().getType()!=null && !a.getPlatformApp().getType().equals(b.getPlatformApp().getType())) return false;
+        }
+        if(a.getApplication()!=null && b.getApplication()!=null){
+            if(a.getApplication().getId()!=null && b.getApplication().getId()==null) return false;
+            if(a.getApplication().getId()!=null && b.getApplication().getId()!=null && !a.getApplication().getId().equals(b.getApplication().getId())) return false;
+            if(a.getApplication().getType()!=null && b.getApplication().getType()==null) return false;
+            if(a.getApplication().getType()!=null && b.getApplication().getType()!=null && !a.getApplication().getType().equals(b.getApplication().getType())) return false;
+        }
+        return true;
+    }
+
+    public void stop() {
         if(subscription!=null && !subscription.isUnsubscribed()) {
             subscription.unsubscribe();
         }
+        subscription=null;
     }
-
-    private void start(Context context, String path, Logger logger, AtomicBoolean isRunning, DataKitManager dataKitManager, Conditions conditions, Tasks tasks, Actions actions, Subscriber subscriber) {
-        isActive=true;
-        subscription = when.getObservable(path, logger, isRunning, dataKitManager, conditions)
-                .flatMap(new Func1<Long[], Observable<Boolean>>() {
-                    @Override
-                    public Observable<Boolean> call(Long[] blockTime) {
-                        try {
-                            logger.write(path, "valid block, block_start=" + DateTime.convertTimeStampToDateTime(blockTime[1])+", block_end=" + DateTime.convertTimeStampToDateTime(blockTime[2]));
-                            isRunning.set(true);
-                            return new WhatManager().getObservable(context, path, logger, dataKitManager, conditions, what, actions, tasks);
-                        } catch (ConfigurationFileFormatError | DataKitAccessError e) {
-                            return Observable.error(e);
-                        }
-                    }
-                }).doOnUnsubscribe(() -> isRunning.set(false))
-                .subscribe(new Observer<Boolean>() {
+    public void start() {
+        subscription = whenManager.getObservable().flatMap(state -> {
+            try {
+                return whatManager.getObservable(DateTime.getDateTime());
+            } catch (ConfigurationFileFormatError configurationFileFormatError) {
+                return Observable.error(configurationFileFormatError);
+            }
+        }).subscribe(new Observer<State>() {
             @Override
             public void onCompleted() {
-                isActive=false; isRunning.set(false);
+                Log.d("abc","Scheduler completed");
             }
 
             @Override
             public void onError(Throwable e) {
-                isRunning.set(false);subscriber.onError(e);
+                Log.d("abc","Scheduler onError()");
+
             }
 
             @Override
-            public void onNext(Boolean aBoolean) {
-                isRunning.set(false);subscriber.onNext(aBoolean);
+            public void onNext(State state) {
+                Log.d("abc","Scheduler onNext() state="+state.getMessage());
             }
         });
-    }
-
-    Observable<Boolean> execute(Context context, String path, Logger logger, AtomicBoolean isRunning, DataKitManager dataKitManager, Conditions conditions, Tasks tasks, Actions actions) throws ConfigurationFileFormatError, DataKitAccessError {
-        path=path+"/"+id;
-        String finalPath = path;
-        return Observable.create(new Observable.OnSubscribe<Boolean>() {
-            @Override
-            public void call(Subscriber<? super Boolean> subscriber) {
-                try {
-                    logger.write(finalPath,"running="+isActive);
-                    if(conditions.isValid(finalPath, logger, dataKitManager, condition)){
-                        if(isActive) {
-                            logger.write(finalPath,"status=running, condition=true, operation=do_nothing");
-                        }else{
-                            logger.write(finalPath,"status=not_running, condition=true, operation=start");
-                            start(context, finalPath, logger, isRunning, dataKitManager, conditions, tasks, actions, subscriber);
-                        }
-                    }else{
-                        if(isActive){
-                            logger.write(finalPath,"status=running, condition=false, operation=stop");
-                            stop();
-                        }else{
-                            logger.write(finalPath,"status=not_running, condition=false, operation=do_nothing");
-                        }
-                    }
-                } catch (ConfigurationFileFormatError | DataKitAccessError e) {
-                    subscriber.onError(e);
-                }
-
-            }
-        }).subscribeOn(rx.schedulers.Schedulers.computation());
-    }
-
-    public When getWhen() {
-        return when;
-    }
-
-    public What[][] getWhat() {
-        return what;
     }
 }

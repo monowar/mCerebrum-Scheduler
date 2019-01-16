@@ -26,17 +26,18 @@ package org.md2k.scheduler.scheduler;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import android.util.Log;
 
 import org.md2k.datakitapi.source.datasource.DataSource;
 import org.md2k.datakitapi.time.DateTime;
 import org.md2k.scheduler.State;
 import org.md2k.scheduler.configuration.Configuration;
+import org.md2k.scheduler.datakit.DataKitManager;
 import org.md2k.scheduler.exception.ConfigurationFileFormatError;
 import org.md2k.scheduler.listen.ListenData;
-import org.md2k.scheduler.logger.Logger;
 import org.md2k.scheduler.what.WhatManager;
 import org.md2k.scheduler.when.WhenManager;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import rx.Observable;
 import rx.Observer;
@@ -48,26 +49,27 @@ public class Scheduler {
     private Configuration.CListen cListen;
     private WhenManager whenManager;
     private WhatManager whatManager;
-    private Logger logger;
-    public Scheduler(String type, String id, Configuration.CListen cListen, WhenManager whenManager, WhatManager whatManager, Logger logger) {
+
+    public Scheduler(String type, String id, Configuration.CListen cListen, WhenManager whenManager, WhatManager whatManager) {
         this.type = type;
         this.id = id;
         this.cListen = cListen;
         this.whenManager = whenManager;
         this.whatManager = whatManager;
-        this.logger = logger;
         this.subscription = null;
     }
 
-    public void restartIfMatch(ListenData listenData){
+    public void restartIfMatch(String path, ListenData listenData){
         if(listenData==null || isMatch(listenData)){
-            if(subscription==null){
-                logger.write(type+"/"+id,"start()");
+            String s="null";
+            if(listenData!=null)
+                s=listenData.toString();
+            if(subscription==null || subscription.isUnsubscribed()){
+                start(path);
             }else{
-                logger.write(type+"/"+id,"restart()");
+                stop(path);
+                start(path);
             }
-            stop();
-            start();
         }
     }
     private boolean isMatch(ListenData listenData){
@@ -113,34 +115,36 @@ public class Scheduler {
         return true;
     }
 
-    public void stop() {
+    public void stop(String path) {
+        DataKitManager.getInstance().insertSystemLog("DEBUG",path+"/Scheduler("+type+"-"+id+")","Scheduler stop");
         if(subscription!=null && !subscription.isUnsubscribed()) {
             subscription.unsubscribe();
         }
         subscription=null;
     }
-    public void start() {
-        subscription = whenManager.getObservable().flatMap(state -> {
+    public void start(String path) {
+        DataKitManager.getInstance().insertSystemLog("DEBUG",path+"/Scheduler("+type+"-"+id+")","Scheduler start");
+        subscription = whenManager.getObservable(path+"/Scheduler("+type+"-"+id+")").flatMap(state -> {
             try {
-                return whatManager.getObservable(DateTime.getDateTime());
+                return whatManager.getObservable(path+"/Scheduler("+type+"-"+id+")", DateTime.getDateTime());
             } catch (ConfigurationFileFormatError configurationFileFormatError) {
                 return Observable.error(configurationFileFormatError);
             }
         }).subscribe(new Observer<State>() {
             @Override
             public void onCompleted() {
-                Log.d("abc","Scheduler completed");
+                DataKitManager.getInstance().insertSystemLog("DEBUG",path+"/Scheduler("+type+"-"+id+")","Scheduler completed");
+//                stop();
             }
 
             @Override
             public void onError(Throwable e) {
-                Log.d("abc","Scheduler onError()");
-
+                DataKitManager.getInstance().insertSystemLog("ERROR",path+"/Scheduler("+type+"-"+id+")","Scheduler error");
             }
 
             @Override
             public void onNext(State state) {
-                Log.d("abc","Scheduler onNext() state="+state.getMessage());
+                DataKitManager.getInstance().insertSystemLog("DEBUG",path+"/"+type+"-"+id,"Scheduler next state="+state.getMessage());
             }
         });
     }

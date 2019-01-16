@@ -1,4 +1,5 @@
-package org.md2k.scheduler.condition.function;
+package org.md2k.scheduler.resetapp;
+
 /*
  * Copyright (c) 2016, The University of Memphis, MD2K Center
  * - Syed Monowar Hossain <monowar.hossain@gmail.com>
@@ -25,42 +26,6 @@ package org.md2k.scheduler.condition.function;
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
-import com.udojava.evalex.Expression;
-
-import org.md2k.datakitapi.time.DateTime;
-
-import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
-
-public class now extends Function {
-    public now() {
-        super("now");
-    }
-
-    public Expression add(Expression e, ArrayList<String> details) {
-        e.addLazyFunction(e.new LazyFunction(name, 0) {
-            @Override
-            public Expression.LazyNumber lazyEval(List<Expression.LazyNumber> lazyParams) {
-                return new Expression.LazyNumber() {
-                    @Override
-                    public BigDecimal eval() {
-                        long c = DateTime.getDateTime();
-//                        d.add(name+"()="+ String.format(Locale.getDefault(), "%d",c)+" ["+DateTime.convertTimeStampToDateTime(c)+"]");
-                        return new BigDecimal(c);
-                    }
-
-                    @Override
-                    public String getString() {
-                        return null;
-                    }
-                };
-            }
-        });
-        return e;
-    }
-    public String prepare(String s){
-        return s;
-    }
+public interface ResetCallback {
+    void onReset();
 }

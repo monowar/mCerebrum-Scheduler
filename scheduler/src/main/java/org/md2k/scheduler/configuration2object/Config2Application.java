@@ -26,40 +26,41 @@ package org.md2k.scheduler.configuration2object;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import android.content.Context;
-
 import org.md2k.scheduler.State;
 import org.md2k.scheduler.condition.ConditionManager;
 import org.md2k.scheduler.configuration.Configuration;
 import org.md2k.scheduler.datakit.DataKitManager;
 import org.md2k.scheduler.exception.ConfigurationFileFormatError;
 import org.md2k.scheduler.operation.application.ApplicationOperation;
-import org.md2k.scheduler.operation.incentive.IncentiveOperation;
 import org.md2k.scheduler.time.Time;
-
-import java.math.BigDecimal;
 
 import rx.Observable;
 
 class Config2Application {
-    public static Observable<State> getObservable(Context context, String _type, String _id, DataKitManager dataKitManager, Configuration.CApplicationList[] cApplicationList, ConditionManager conditionManager, String id) throws ConfigurationFileFormatError {
+    public static Observable<State> getObservable(String path, String _type, String _id, Configuration.CApplicationList[] cApplicationList, String id) throws ConfigurationFileFormatError {
         Configuration.CApplication[] cApplications=get(cApplicationList, id);
-        if(cApplications==null) return null;
-        Configuration.CApplication cApplication = get(cApplications, conditionManager);
-        if(cApplication==null) return null;
-        return new ApplicationOperation(cApplication.getPackage_name(), Time.getTime(cApplication.getTimeout()), cApplication.getParameter()).getObservable(context,_type,_id);
+        if(cApplications==null) {
+            return null;
+        }
+        Configuration.CApplication cApplication = get(cApplications);
+        if(cApplication==null) {
+            DataKitManager.getInstance().insertSystemLog("ERROR", path+"/application("+id+")", "not found in the configuration file");
+            return null;
+        }
+        return new ApplicationOperation(cApplication.getPackage_name(), Time.getTime(cApplication.getTimeout()), cApplication.getParameter()).getObservable(path+"/application("+id+")",_type,_id);
     }
-    private static Configuration.CApplication get(Configuration.CApplication[] cApplications, ConditionManager conditionManager){
+    private static Configuration.CApplication get(Configuration.CApplication[] cApplications){
         for (Configuration.CApplication cApplication : cApplications) {
-            if(conditionManager.isTrue(cApplication.getCondition()))
+            if(ConditionManager.getInstance().isTrue(cApplication.getCondition()))
                 return cApplication;
         }
         return null;
     }
     private static Configuration.CApplication[] get(Configuration.CApplicationList[] cApplicationLists, String id) {
         for (Configuration.CApplicationList cApplicationList : cApplicationLists) {
-            if (cApplicationList.getId().equalsIgnoreCase(id))
+            if (cApplicationList.getId().equalsIgnoreCase(id)) {
                 return cApplicationList.getApplication();
+            }
         }
         return null;
     }

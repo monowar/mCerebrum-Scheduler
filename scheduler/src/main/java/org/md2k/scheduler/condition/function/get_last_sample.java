@@ -37,33 +37,46 @@ import org.md2k.datakitapi.datatype.DataTypeInt;
 import org.md2k.datakitapi.datatype.DataTypeIntArray;
 import org.md2k.datakitapi.datatype.DataTypeLong;
 import org.md2k.datakitapi.datatype.DataTypeLongArray;
-import org.md2k.datakitapi.source.application.ApplicationBuilder;
 import org.md2k.datakitapi.source.datasource.DataSourceBuilder;
 import org.md2k.datakitapi.source.datasource.DataSourceClient;
-import org.md2k.datakitapi.source.platform.PlatformBuilder;
-import org.md2k.datakitapi.source.platformapp.PlatformAppBuilder;
 import org.md2k.scheduler.datakit.DataKitManager;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class get_last_sample extends Function {
-    public get_last_sample(DataKitManager dataKitManager) {
-        super(dataKitManager);
+    public get_last_sample() {
+        super("get_last_sample");
     }
 
-    public Expression add(Expression e) {
-        e.addLazyFunction(e.new LazyFunction("get_last_sample", -1) {
+    public Expression add(Expression e, ArrayList<String> details) {
+        e.addLazyFunction(e.new LazyFunction(name, -1) {
             @Override
             public Expression.LazyNumber lazyEval(List<Expression.LazyNumber> lazyParams) {
-                DataSourceBuilder d = createDataSource(lazyParams,1);
-                ArrayList<DataSourceClient> dd = dataKitManager.find(d.build());
-                for (int i = 0; i < dd.size(); i++) {
-                    ArrayList<DataType> dataTypes = dataKitManager.query(dd.get(i), 1);
-                    if (dataTypes.size() == 0) continue;
-                    double curValue = getValue(dataTypes.get(0), lazyParams.get(0).eval().intValue());
-                    return create(curValue);
+                details.add(name);
+                String s=name+"(";
+                for(int i=0;i<lazyParams.size();i++) {
+                    if(i!=0) s+=",";
+                    s += lazyParams.get(i).getString();
                 }
+                details.add(s+")");
+
+                DataSourceBuilder db = createDataSource(lazyParams,1);
+                ArrayList<DataSourceClient> dd = DataKitManager.getInstance().find(db.build());
+                if(dd.size()==0){
+                    details.add(String.valueOf(Long.MIN_VALUE)+" [datasource not found]");
+                    return create(Long.MIN_VALUE);
+                }else {
+                    for (int i = 0; i < dd.size(); i++) {
+                        ArrayList<DataType> dataTypes = DataKitManager.getInstance().query(dd.get(i), 1);
+                        if (dataTypes.size() == 0) continue;
+                        double curValue = getValue(dataTypes.get(0), lazyParams.get(0).eval().intValue());
+                        details.add(String.format(Locale.getDefault(), "%.2f",curValue));
+                        return create(curValue);
+                    }
+                }
+                details.add(String.valueOf(Long.MIN_VALUE)+" [data not found]");
                 return create(Long.MIN_VALUE);
             }
         });

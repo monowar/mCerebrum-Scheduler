@@ -32,18 +32,18 @@ import org.md2k.datakitapi.source.application.ApplicationBuilder;
 import org.md2k.datakitapi.source.datasource.DataSourceBuilder;
 import org.md2k.datakitapi.source.platform.PlatformBuilder;
 import org.md2k.datakitapi.source.platformapp.PlatformAppBuilder;
-import org.md2k.scheduler.datakit.DataKitManager;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 public abstract class Function {
-    DataKitManager dataKitManager;
-    Function(DataKitManager dataKitManager){
-        this.dataKitManager = dataKitManager;
+    String name;
+    Function(String name){
+        this.name = name;
     }
     public abstract String prepare(String s);
-    public abstract Expression add(Expression e);
+    public abstract Expression add(Expression e, ArrayList<String> details);
     Expression.LazyNumber create(final int v){
         return new Expression.LazyNumber() {
             @Override
@@ -139,5 +139,4 @@ public abstract class Function {
         if (e.equalsIgnoreCase("NULL")) return false;
         return true;
     }
-
 }

@@ -26,39 +26,42 @@ package org.md2k.scheduler.condition.function;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+import android.util.Log;
+
+import com.udojava.evalex.AbstractFunction;
 import com.udojava.evalex.Expression;
 
-import org.md2k.datakitapi.source.datasource.DataSourceBuilder;
-import org.md2k.scheduler.datakit.DataKitManager;
-
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
-public class is_stress_now extends Function {
-    public is_stress_now(DataKitManager dataKitManager) {
-        super(dataKitManager);
+public class random extends Function {
+    public random() {
+        super("random");
     }
 
-    public Expression add(Expression e) {
-        e.addLazyFunction(e.new LazyFunction("is_stress_now", -1) {
+    @Override
+    public String prepare(String s) {
+        return s;
+    }
+
+    public Expression add(Expression e, ArrayList<String> details) {
+        e.addFunction(new AbstractFunction("random", 1) {
             @Override
-            public Expression.LazyNumber lazyEval(List<Expression.LazyNumber> lazyParams) {
-                DataSourceBuilder d = createDataSource(lazyParams, 2);
-                long sTime = lazyParams.get(0).eval().longValue();
-                long eTime = lazyParams.get(1).eval().longValue();
-                boolean isActive = isActive(sTime, eTime);
-                if(isActive) return create(1);
-                else return create(0);
+            public BigDecimal eval(List<BigDecimal> parameters) {
+                if (parameters.size() != 1) {
+                    throw new Expression.ExpressionException("average requires at least one parameter");
+                }
+                int v = (int) (parameters.get(0).longValue()/1000);
+                Random r = new Random();
+                long value = r.nextInt(v)*1000;
+                details.add(name);
+                details.add(name+"("+String.valueOf(parameters.get(0).longValue())+")");
+                details.add(String.valueOf(value));
+                return new BigDecimal(value);
             }
         });
         return e;
-    }
-
-    public boolean isActive(long sTime, long eTime) {
-        // TODO: add activity code
-        return false;
-    }
-
-    public String prepare(String s) {
-        return s;
     }
 }

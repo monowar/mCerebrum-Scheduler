@@ -29,34 +29,69 @@ package org.md2k.scheduler.operation.notification;
 import android.content.Context;
 import android.os.Vibrator;
 
+
 import org.md2k.datakitapi.time.DateTime;
+import org.md2k.scheduler.MyApplication;
 import org.md2k.scheduler.State;
+import org.md2k.scheduler.datakit.DataKitManager;
+import org.md2k.scheduler.logger.MyLogger;
 import org.md2k.scheduler.operation.AbstractOperation;
+import org.md2k.scheduler.time.Time;
 
 import java.util.concurrent.TimeUnit;
 
 import rx.Observable;
 import rx.functions.Func1;
+import rx.schedulers.Schedulers;
 
 public class PhoneVibrate extends AbstractOperation {
     private long repeat;
     private long interval;
     private Long[] at;
+    private String base;
 
-    public PhoneVibrate(long repeat, long interval, Long[] at) {
+    public PhoneVibrate(long repeat, long interval, Long[] at, String base) {
         this.repeat = repeat;
         this.interval = interval;
         this.at = at;
+        this.base = base;
     }
 
-    public Observable<State> getObservable(Context context, String _type, String _id) {
+    public Observable<State> getObservable(String path, String _type, String _id) {
         return Observable.from(at)
-                .map(delay -> {
-                    if (delay <= 0) delay = 1L;
-                    return delay;
-                }).flatMap(delay -> Observable.interval(delay, interval, TimeUnit.MILLISECONDS)
-                        .takeWhile(aLong -> aLong < repeat)).map(integer -> {
-                    vibrate(context);
+                .map(new Func1<Long, Long>() {
+                    @Override
+                    public Long call(Long delay) {
+                        if(base!=null){
+                            long dl;
+                            long trigTime = delay+ Time.getToday()+Time.getTime(base);
+                            long curTime = DateTime.getDateTime();
+                            if(trigTime>curTime) dl= trigTime-curTime;
+                            else if(trigTime+5000>curTime) dl=0;
+                            else dl= -1L;
+                            return dl;
+
+                        }else {
+                            if (delay <= 0) delay = 0L;
+                            DataKitManager.getInstance().insertSystemLog("DEBUG",path+"/vibrate", "at: "+DateTime.convertTimeStampToDateTime(DateTime.getDateTime()+delay));
+                            return delay;
+                        }
+                    }
+                }).filter(new Func1<Long, Boolean>() {
+                    @Override
+                    public Boolean call(Long value) {
+                        if(value<0) return false;
+                        else return true;
+                    }
+                })
+                .flatMap(delay -> {
+                    return Observable.interval(delay, interval, TimeUnit.MILLISECONDS)
+                            .takeWhile(aLong -> {
+                                return aLong < repeat;
+                            });
+                }).map(integer -> {
+                    DataKitManager.getInstance().insertSystemLog("DEBUG",path+"/vibrate", "vibrating...");
+                    vibrate();
                     return new State(State.STATE.PROCESS, "Phone vibrate...");
                 }).filter(new Func1<State, Boolean>() {
                     @Override
@@ -66,9 +101,9 @@ public class PhoneVibrate extends AbstractOperation {
                 });
     }
 
-    private void vibrate(Context context) {
+    private void vibrate() {
         Vibrator vibrator;
-        vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+        vibrator = (Vibrator) MyApplication.getContext().getSystemService(Context.VIBRATOR_SERVICE);
         if (vibrator != null)
             vibrator.vibrate(300);
     }

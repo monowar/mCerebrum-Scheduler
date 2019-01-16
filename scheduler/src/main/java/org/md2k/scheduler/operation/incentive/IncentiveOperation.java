@@ -34,6 +34,7 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 import org.md2k.scheduler.Constants;
+import org.md2k.scheduler.MyApplication;
 import org.md2k.scheduler.State;
 import org.md2k.scheduler.datakit.DataKitManager;
 import org.md2k.scheduler.operation.AbstractOperation;
@@ -49,24 +50,27 @@ public class IncentiveOperation extends AbstractOperation {
     private static final String TEXT_TOTAL_AMOUNT="<TOTAL_AMOUNT>";
 
     private double amount;
+    private double totalAmount;
     private String[] message;
+    private String[] msgResult;
     private long timeout;
-    private DataKitManager dataKitManager;
     private Subscriber<? super State> subscriber;
 
-    public IncentiveOperation(DataKitManager dataKitManager, double amount, String[] message, long timeout) {
+    public IncentiveOperation(double amount, String[] message, long timeout) {
         this.amount = amount;
         this.message = message;
         this.timeout = timeout;
-        this.dataKitManager = dataKitManager;
+        this.totalAmount = amount;
     }
-    private void prepareMessage(double totalAmount){
+    private void prepareMessage(){
         try {
             String amountStr = String.format(Locale.getDefault(), "%.2f", amount);
             String amountTotalStr = String.format(Locale.getDefault(), "%.2f", totalAmount);
+            msgResult =new String[message.length];
             for (int i = 0; i < message.length; i++) {
-                message[i] = message[i].replace(TEXT_AMOUNT, amountStr);
-                message[i] = message[i].replace(TEXT_TOTAL_AMOUNT, amountTotalStr);
+                msgResult[i]=message[i];
+                msgResult[i] = msgResult[i].replace(TEXT_AMOUNT, amountStr);
+                msgResult[i] = msgResult[i].replace(TEXT_TOTAL_AMOUNT, amountTotalStr);
             }
         }catch (Exception e){
             Log.e("IncentiveOperation","prepareMessage() - error: "+e.toString());
@@ -74,32 +78,31 @@ public class IncentiveOperation extends AbstractOperation {
     }
 
     @Override
-    public Observable<State> getObservable(Context context, String _type, String _id) {
+    public Observable<State> getObservable(String path, String _type, String _id) {
         return Observable.just(true).map(aBoolean -> {
-            dataKitManager.insertIncentive(amount);
-            double totalAmount = dataKitManager.queryTotalIncentive();
-            prepareMessage(totalAmount);
+            totalAmount = DataKitManager.getInstance().insertIncentive(amount);
+            prepareMessage();
             return true;
         }).flatMap(aBoolean -> Observable.create((Observable.OnSubscribe<State>) subscriber -> {
             IncentiveOperation.this.subscriber = subscriber;
-            LocalBroadcastManager.getInstance(context).registerReceiver(mMessageReceiver,
+            LocalBroadcastManager.getInstance(MyApplication.getContext()).registerReceiver(mMessageReceiver,
                     new IntentFilter(Constants.INTENT_COMMUNICATION));
-            show(context);
-        }).timeout(timeout+2000, TimeUnit.MILLISECONDS).doOnUnsubscribe(() -> LocalBroadcastManager.getInstance(context).unregisterReceiver(mMessageReceiver)));
+            show();
+        }).timeout(timeout+2000, TimeUnit.MILLISECONDS).doOnUnsubscribe(() -> LocalBroadcastManager.getInstance(MyApplication.getContext()).unregisterReceiver(mMessageReceiver)));
     }
 
-    private void show(Context context){
-        Intent intent = new Intent(context, ActivityIncentive.class);
-        intent.putExtra("message", message);
+    private void show(){
+        Intent intent = new Intent(MyApplication.getContext(), ActivityIncentive.class);
+        intent.putExtra("message", msgResult);
         intent.putExtra("timeout", timeout);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        context.startActivity(intent);
+        MyApplication.getContext().startActivity(intent);
     }
     private BroadcastReceiver mMessageReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             String message = intent.getStringExtra(Constants.INTENT_COMMUNICATION_STATUS);
-            subscriber.onNext(new State(State.STATE.OUTPUT, message));
+            subscriber.onNext(new State(State.STATE.OUTPUT, message+" [incentive = "+String.format(Locale.getDefault(),"%.2f",amount)+", total_incentive="+String.format(Locale.getDefault(),"%.2f",totalAmount)));
             subscriber.onCompleted();
         }
     };

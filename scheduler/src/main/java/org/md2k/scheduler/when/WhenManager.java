@@ -30,105 +30,181 @@ import org.md2k.datakitapi.time.DateTime;
 import org.md2k.scheduler.State;
 import org.md2k.scheduler.condition.ConditionManager;
 import org.md2k.scheduler.configuration.Configuration;
-import org.md2k.scheduler.exception.InvalidBlock;
+import org.md2k.scheduler.datakit.DataKitManager;
 import org.md2k.scheduler.exception.SchedulerFailedError;
-import org.md2k.scheduler.exception.SchedulerNotFound;
-import org.md2k.scheduler.logger.Logger;
+import org.md2k.scheduler.logger.MyLogger;
 import org.md2k.scheduler.time.Time;
 
+import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import rx.Observable;
 import rx.functions.Func1;
+import rx.schedulers.Schedulers;
 
-public class WhenManager{
+public class WhenManager {
     private String type, id;
     private Configuration.CWhen[] cWhenList;
-    private ConditionManager conditionManager;
-//    private int[] tries;
     private AtomicBoolean isRunning;
-    private Logger logger;
 
-    public WhenManager(String type, String id, Configuration.CWhen[] cWhenList, ConditionManager conditionManager, Logger logger, AtomicBoolean isRunning) {
+    public WhenManager(String type, String id, Configuration.CWhen[] cWhenList, AtomicBoolean isRunning) {
         this.type = type;
         this.id = id;
         this.cWhenList = cWhenList;
-        this.conditionManager = conditionManager;
-        this.logger = logger;
-/*
-        tries = new int[cWhenList.length];
-        for (int i = 0; i < cWhenList.length; i++)
-            tries[i] = -1;
-*/
         this.isRunning = isRunning;
     }
+    private boolean checkCondition(String path, String condition){
+        ArrayList<String> details = new ArrayList<>();
+        boolean conditionResult= ConditionManager.getInstance().isTrue(condition, details);
+        DataKitManager.getInstance().insertSystemLogCondition(path, details);
+        String s = "";
+        for(int i=0;i<details.size();i+=3) {
+            if(i+2>=details.size()) continue;
+            s += details.get(i+1).replace(",",";") + "="+details.get(i+2).replace(",",";")+";";
+        }
+        DataKitManager.getInstance().insertSystemLog("DEBUG", path,"Condition="+String.valueOf(condition)+" ["+s+"]");
+        return conditionResult;
+    }
 
-    public Observable<State> getObservable() {
+    public Observable<State> getObservable(String path) {
+        String[] path1 = new String[1];
         return Observable.range(0, cWhenList.length)
                 .flatMap(new Func1<Integer, Observable<Integer>>() {
                     @Override
+                    public Observable<Integer> call(Integer integer) {
+                        return DataKitManager.getInstance().connect().map(new Func1<Boolean, Integer>() {
+                            @Override
+                            public Integer call(Boolean aBoolean) {
+                                return integer;
+                            }
+                        });
+                    }
+                }).observeOn(Schedulers.computation())
+                .flatMap(new Func1<Integer, Observable<Integer>>() {
+                    @Override
                     public Observable<Integer> call(Integer index) {
-                        if (!conditionManager.isTrue(cWhenList[index].getCondition())) {
-                            logger.write(type+"/"+id+"/when["+Integer.toString(index)+"]/condition["+cWhenList[index].getCondition()+"]", "FAILED: block_condition=false");
-                            return Observable.error(new InvalidBlock());
+                        path1[0]=path+"/when("+type + "-" + id+"-"+Integer.toString(index)+")";
+                        DataKitManager.getInstance().insertSystemLog("DEBUG", path1[0],"start");
+                        boolean condition = checkCondition(path1[0]+"/precondition", cWhenList[index].getCondition());
+                        DataKitManager.getInstance().insertSystemLog("DEBUG", path1[0],"precondition="+String.valueOf(condition));
+
+                        if (!condition) {
+                            DataKitManager.getInstance().insertSystemLog("DEBUG", path1[0],"not scheduled due to precondition failed");
+                            return Observable.just(null);
                         }
-                        logger.write(type+"/"+id+"/when["+Integer.toString(index)+"]/condition["+cWhenList[index].getCondition()+"]", "TRY: block_condition=true");
-                        return getObservable(index);
+                        else
+                            return getObservable(path1[0],index);
+                    }
+                }).filter(new Func1<Integer, Boolean>() {
+                    @Override
+                    public Boolean call(Integer integer) {
+                        if (integer == null) return false;
+                        return true;
                     }
                 })
-                .map(cTriggerRule -> new State(State.STATE.OUTPUT, "OK")).onErrorReturn(throwable -> null).filter(longs -> longs != null);
+                .map(new Func1<Integer, State>() {
+                    @Override
+                    public State call(Integer cTriggerRule) {
+                        return new State(State.STATE.OUTPUT, "OK");
+                    }
+                })
+                .onErrorReturn(new Func1<Throwable, State>() {
+                    @Override
+                    public State call(Throwable throwable) {
+                        DataKitManager.getInstance().insertSystemLog("ERROR", path1[0],"not scheduled due to error e="+throwable.getMessage());
+                        return null;
+                    }
+                }).filter((State state) -> {
+                    return state != null;
+                });
     }
 
-    private Observable<Integer> getObservable(int index) {
-        return Observable.just(true)
-                .flatMap(aBoolean -> {
-                    long startTime = conditionManager.evaluate(cWhenList[index].getStart_time()).longValue();
-                    long endTime = conditionManager.evaluate(cWhenList[index].getEnd_time()).longValue();
+    private Observable<Integer> getObservable(String path, int index) {
+        final String[] logId = new String[2];
+        return Observable.just(true).flatMap(new Func1<Boolean, Observable<Boolean>>() {
+            @Override
+            public Observable<Boolean> call(Boolean integer) {
+                return DataKitManager.getInstance().connect();
+            }
+        }).observeOn(Schedulers.computation()).flatMap(aBoolean -> {
+                    long startTime = ConditionManager.getInstance().evaluate(cWhenList[index].getStart_time()).longValue();
+                    long endTime = ConditionManager.getInstance().evaluate(cWhenList[index].getEnd_time()).longValue();
+                    logId[0]=path+"/block("+DateTime.convertTimeStampToDateTime(startTime)+"-"+DateTime.convertTimeStampToDateTime(endTime)+")";
                     long now = DateTime.getDateTime();
                     if (endTime < now) {
-                        logger.write(type + "/" + id + "/when[" + Integer.toString(index) + "]/block[start:" + DateTime.convertTimeStampToDateTime(startTime) + ", end:" + DateTime.convertTimeStampToDateTime(endTime) + "]", "FAILED: current time > block_end");
-                        return Observable.error(new Throwable(new InvalidBlock()));
-                    } else if(startTime<now) {
-                        logger.write(type + "/" + id + "/when[" + Integer.toString(index) + "]/block[start:" + DateTime.convertTimeStampToDateTime(startTime) + ", end:" + DateTime.convertTimeStampToDateTime(endTime) + "]", "TRY: block_start < current time < block_end");
+                        DataKitManager.getInstance().insertSystemLog("DEBUG",logId[0], "invalid block [current time > block_end]");
+                        return Observable.just(false);
+                    } else if (startTime < now) {
+                        DataKitManager.getInstance().insertSystemLog("DEBUG",logId[0], "valid block [block_start <current time < block_end]");
                         return Observable.just(true);
+                    } else {
+                        DataKitManager.getInstance().insertSystemLog("DEBUG",logId[0], "valid block future [block start at: "+DateTime.convertTimeStampToDateTime(startTime)+"]");
+                        return Observable.timer(startTime - now, TimeUnit.MILLISECONDS).map(integer -> true);
                     }
-                    else {
-                        logger.write(type + "/" + id + "/when[" + Integer.toString(index) + "]/block[start:" + DateTime.convertTimeStampToDateTime(startTime) + ", end:" + DateTime.convertTimeStampToDateTime(endTime) + "]", "WAIT: current time< block start: trigger time="+DateTime.convertTimeStampToDateTime(startTime));
-                        return Observable.just(true).delay(now-startTime, TimeUnit.MILLISECONDS).map(integer -> true);
+                }).filter(new Func1<Boolean, Boolean>() {
+                    @Override
+                    public Boolean call(Boolean aBoolean) {
+                        return aBoolean;
                     }
                 })
                 .flatMap(b -> {
-                    int tries = logger.getNumberOfTry(type, id, Time.getToday(), index);
-                    logger.setNumberOfTry(type, id, Time.getToday(), index, tries+1);
-                    int curIndex = tries;
-                    if (curIndex >= cWhenList[index].getTrigger_rule().length) {
-                        curIndex = cWhenList[index].getTrigger_rule().length - 1;
-                        if (cWhenList[index].getTrigger_rule()[curIndex].getRetry_after() == null) {
-                            logger.write(type+"/"+id+"/when["+Integer.toString(index)+"]/try["+Integer.toString(tries+1)+"]", "FAILED: retry option not available");
-                            return Observable.error(new SchedulerNotFound());
-                        }
-                    }
-                    long time = conditionManager.evaluate(cWhenList[index].getTrigger_rule()[curIndex].getTrigger_time()).longValue();
                     long curTime = DateTime.getDateTime();
-                    if (curTime < time) {
-                        logger.write(type+"/"+id+"/when["+Integer.toString(index)+"]/try["+Integer.toString(tries+1)+"]/at", "Trigger at: "+DateTime.convertTimeStampToDateTime(time));
-                        return Observable.just(cWhenList[index].getTrigger_rule()[curIndex]).delay(time - curTime, TimeUnit.MILLISECONDS);
+                    long nextTriggerTime = MyLogger.getInstance().getLastScheduleTime(type, id, index);
+                    int tries = MyLogger.getInstance().getNumberOfTry(type, id, Time.getToday(), index);
+                    int curIndex = tries;
+                    if (curIndex >= cWhenList[index].getTrigger_rule().length)
+                        curIndex = cWhenList[index].getTrigger_rule().length - 1;
+                    while (nextTriggerTime < curTime || tries == -1) {
+                        tries++;
+                        MyLogger.getInstance().setNumberOfTry(type, id, Time.getToday(), index, tries);
+                        curIndex = tries;
+                        if (curIndex >= cWhenList[index].getTrigger_rule().length) {
+                            curIndex = cWhenList[index].getTrigger_rule().length - 1;
+                            if (cWhenList[index].getTrigger_rule()[curIndex].getRetry_after() == null) {
+                                DataKitManager.getInstance().insertSystemLog("DEBUG", logId[0] + "/try[" + Integer.toString(tries + 1) + "]", "not scheduled: retry option not available");
+                                return Observable.just(null);
+                            }
+                        }
+                        nextTriggerTime = ConditionManager.getInstance().evaluate(cWhenList[index].getTrigger_rule()[curIndex].getTrigger_time()).longValue();
+                        if (tries != curIndex) {
+                            nextTriggerTime += ConditionManager.getInstance().evaluate(cWhenList[index].getTrigger_rule()[curIndex].getRetry_after()).longValue();
+                        }
+//                        Log.d("aaa", "[" + type + "_" + id + "_" + index + "] block new try trigger time=" + DateTime.convertTimeStampToDateTime(nextTriggerTime));
+                        MyLogger.getInstance().setLastScheduleTime(type, id, index, nextTriggerTime);
                     }
-                    else {
-                        logger.write(type+"/"+id+"/when["+Integer.toString(index)+"]/try["+Integer.toString(tries+1)+"]/at", "Trigger now");
-                        return Observable.just(cWhenList[index].getTrigger_rule()[curIndex]);
+                    long endTime = ConditionManager.getInstance().evaluate(cWhenList[index].getEnd_time()).longValue();
+                    if(nextTriggerTime>=endTime){
+                        DataKitManager.getInstance().insertSystemLog("DEBUG",logId[0] + "/try[" + Integer.toString(tries + 1) + "]", "not scheduled: block ended when next scheduled..next schedule="+DateTime.convertTimeStampToDateTime(nextTriggerTime));
+                        return Observable.just(null);
                     }
+                    logId[1]=logId[0]+ "/try[" + Integer.toString(tries + 1) + "]";
+                    DataKitManager.getInstance().insertSystemLog("DEBUG", logId[1], "scheduled at: " + DateTime.convertTimeStampToDateTime(nextTriggerTime));
+                    int finalCurIndex = curIndex;
+                    long timeDiff = nextTriggerTime - DateTime.getDateTime();
+                    if(timeDiff < 0) timeDiff = 0;
+                    return Observable.timer(timeDiff, TimeUnit.MILLISECONDS).map(new Func1<Long, Configuration.CTriggerRule>() {
+                        @Override
+                        public Configuration.CTriggerRule call(Long aLong) {
+                            return cWhenList[index].getTrigger_rule()[finalCurIndex];
+                        }
+                    });
+//                    return Observable.just(cWhenList[index].getTrigger_rule()[curIndex]).delay(nextTriggerTime - DateTime.getDateTime() , TimeUnit.MILLISECONDS);
                 }).flatMap(new Func1<Configuration.CTriggerRule, Observable<Integer>>() {
                     @Override
                     public Observable<Integer> call(Configuration.CTriggerRule rule) {
-                        if (rule == null) return Observable.error(new SchedulerNotFound());
-                        boolean condition = conditionManager.isTrue(rule.getCondition());
+                        if (rule == null) {
+                            DataKitManager.getInstance().insertSystemLog("DEBUG", logId[1], "not scheduled: trigger rule not found");
+                            return Observable.just(null);
+                        }
+                        boolean condition = checkCondition(logId[1]+"/condition", rule.getCondition());
+
                         if (condition && !isRunning.get()) {
-                            logger.write(type+"/"+id+"/when["+Integer.toString(index)+"]/condition["+rule.getCondition()+"=true]/running[false]", "deliver");
+                            isRunning.set(true);
+                            DataKitManager.getInstance().insertSystemLog("DEBUG", logId[1]+"/trigger", "success [condition=true is_running=false]");
                             return Observable.just(index);
                         } else {
-                            logger.write(type+"/"+id+"/when["+Integer.toString(index)+"]/condition["+rule.getCondition()+"="+Boolean.toString(condition)+"]/running["+Boolean.toString(isRunning.get())+"]", "deliver failed, reschedule");
+                            DataKitManager.getInstance().insertSystemLog("DEBUG", logId[1]+"/trigger", "failed [condition="+String.valueOf(condition)+" is_running="+String.valueOf(isRunning.get())+"]");
                             return Observable.error(new SchedulerFailedError());
                         }
                     }
@@ -136,16 +212,10 @@ public class WhenManager{
                     @Override
                     public Observable<Boolean> call(Throwable throwable) {
                         if (throwable instanceof SchedulerFailedError) {
-                            int curIndex = logger.getNumberOfTry(type, id, Time.getToday(), index);
-                            if (curIndex >= cWhenList[index].getTrigger_rule().length) {
-                                curIndex = cWhenList[index].getTrigger_rule().length - 1;
-                                if (cWhenList[index].getTrigger_rule()[curIndex].getRetry_after() == null) {
-                                    return Observable.error(new SchedulerNotFound());
-                                }
-                            }
-                            long time = conditionManager.evaluate(cWhenList[index].getTrigger_rule()[curIndex].getTrigger_time()).longValue();
-                            return Observable.just(true).delay(time, TimeUnit.MILLISECONDS);
+                            DataKitManager.getInstance().insertSystemLog("DEBUG", logId[1]+"/trigger", "retry");
+                            return Observable.just(true);
                         } else {
+                            DataKitManager.getInstance().insertSystemLog("DEBUG", logId[1]+"/trigger", "failed and stopped [e="+throwable.getMessage()+"]");
                             return Observable.error(throwable);
                         }
                     }

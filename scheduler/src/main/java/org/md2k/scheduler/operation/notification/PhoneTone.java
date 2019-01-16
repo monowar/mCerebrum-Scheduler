@@ -26,21 +26,27 @@ package org.md2k.scheduler.operation.notification;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import android.content.Context;
 import android.content.res.AssetFileDescriptor;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.util.Log;
 
-import org.md2k.datakitapi.time.DateTime;
-import org.md2k.scheduler.State;
-import org.md2k.scheduler.operation.AbstractOperation;
 
-import java.io.IOException;
+import org.md2k.datakitapi.time.DateTime;
+import org.md2k.scheduler.MyApplication;
+import org.md2k.scheduler.State;
+import org.md2k.scheduler.datakit.DataKitManager;
+import org.md2k.scheduler.operation.AbstractOperation;
+import org.md2k.scheduler.time.Time;
+
 import java.util.concurrent.TimeUnit;
 
 import rx.Observable;
+import rx.functions.Action0;
+import rx.functions.Action1;
+import rx.functions.Func1;
+import rx.schedulers.Schedulers;
 
 public class PhoneTone extends AbstractOperation {
     private String format;
@@ -48,66 +54,103 @@ public class PhoneTone extends AbstractOperation {
     private long interval;
     private Long[] at;
     private MediaPlayer mPlayer;
+    private String base;
 
-    public PhoneTone(String format, long repeat, long interval, Long[] at) {
+    public PhoneTone(String format, long repeat, long interval, Long[] at, String base) {
         this.format = format;
         this.repeat = repeat;
         this.interval = interval;
         this.at = at;
+        this.base = base;
+        mPlayer = new MediaPlayer();
     }
 
-    public Observable<State> getObservable(Context context, String _type, String _id) {
-        Log.d("abc", "phoneTone Observable...interval=" + interval);
-        load(context, format);
+
+    public Observable<State> getObservable(String path, String _type, String _id) {
         return Observable.from(at)
-                .map(delay -> {
-                    if (delay <= 0) delay = 1L;
-                    return delay;
+                .map(new Func1<Long, Long>() {
+                    @Override
+                    public Long call(Long delay) {
+                        if (base != null) {
+                            long dl;
+                            long trigTime = delay + Time.getToday() + Time.getTime(base);
+                            long curTime = DateTime.getDateTime();
+                            if (trigTime > curTime) dl = trigTime-curTime;
+                            else if (trigTime + 5000 > curTime) dl = 0;
+                            else dl = -1L;
+                            return dl;
+
+                        } else {
+                            if (delay <= 0) delay = 0L;
+                            DataKitManager.getInstance().insertSystemLog("DEBUG",path+"/phonetone", "at: "+DateTime.convertTimeStampToDateTime(DateTime.getDateTime()+delay));
+                            return delay;
+                        }
+                    }
+                }).filter(new Func1<Long, Boolean>() {
+                    @Override
+                    public Boolean call(Long value) {
+                        if(value<0) return false;
+                        else return true;
+                    }
                 }).flatMap(delay -> Observable.interval(delay, interval, TimeUnit.MILLISECONDS)
                         .takeWhile(aLong -> aLong < repeat)).map(integer -> {
-                    play();
+                    play(path+"/phonetone");
                     return new State(State.STATE.PROCESS, "Phone tone...");
-                }).doOnUnsubscribe(this::stop).doOnError(throwable -> stop());
+                }).doOnUnsubscribe(new Action0() {
+                    @Override
+                    public void call() {
+                        stop(path+"/phonetone");
+                    }
+                }).doOnError(new Action1<Throwable>() {
+                    @Override
+                    public void call(Throwable throwable) {
+                        stop(path+"/phonetone");
+                    }
+                });
     }
 
-    private void stop() {
+    private void stop(String path) {
         try {
-            if (mPlayer != null) {
+            if (mPlayer != null && mPlayer.isPlaying()) {
                 mPlayer.stop();
                 mPlayer.reset();
+                DataKitManager.getInstance().insertSystemLog("DEBUG",path, "tone stop()");
                 mPlayer.release();
             }
             mPlayer = null;
-        } catch (Exception ignored) {
-            Log.e("abc", "PhoneTone..stop()...failed" + "exception=" + ignored.toString());
+        } catch (Exception e) {
+            DataKitManager.getInstance().insertSystemLog("ERROR",path, "tone stop() exception e="+e.getMessage());
         }
     }
 
-    private void load(Context context, String filename) {
+    private void load(String path, String filename) {
+        mPlayer = new MediaPlayer();
         try {
-            mPlayer = new MediaPlayer();
             Uri myUri = Uri.parse(filename);
             mPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-            mPlayer.setDataSource(context, myUri);
+            mPlayer.setDataSource(MyApplication.getContext(), myUri);
             mPlayer.prepare();
         } catch (Exception e1) {
-            Log.e("abc", "PhoneTone..play()..fileLoad()..failed");
             try {
-                AssetFileDescriptor afd = context.getAssets().openFd("tone.mp3");
+                AssetFileDescriptor afd = MyApplication.getContext().getAssets().openFd("tone.mp3");
+                mPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
                 mPlayer.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
+                afd.close();
                 mPlayer.prepare();
-            } catch (Exception ignored) {
-                Log.e("abc", "PhoneTone..play()..assetload()..failed");
+            } catch (Exception e) {
+                DataKitManager.getInstance().insertSystemLog("ERROR",path, "tone load() exception e="+e.getMessage());
             }
         }
     }
 
-    private void play() {
+    private void play(String path) {
         try {
-            Log.d("abc", "phonetone play...");
+            stop(path);
+            load(path, format);
+            DataKitManager.getInstance().insertSystemLog("DEBUG",path, "tone...");
             mPlayer.start();
         } catch (Exception e) {
-            Log.e("abc", "PhoneTone..play()..start()..failed");
+            DataKitManager.getInstance().insertSystemLog("ERROR",path, "tone start() exception e="+e.getMessage());
         }
     }
 }

@@ -26,14 +26,6 @@ package org.md2k.scheduler._test;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import android.content.Context;
-import android.util.Log;
-
-import org.md2k.scheduler.State;
-import org.md2k.scheduler.operation.incentive.IncentiveOperation;
-
-import rx.Observer;
-
 public class IncentiveTest {
 /*
     public static void testIncentiveOp(Context context){

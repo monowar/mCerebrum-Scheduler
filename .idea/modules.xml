@@ -2,10 +2,11 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/../mCerebrum-Library/commons/commons.iml" filepath="$PROJECT_DIR$/../mCerebrum-Library/commons/commons.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../mCerebrum-Library/core/core.iml" filepath="$PROJECT_DIR$/../mCerebrum-Library/core/core.iml" />
       <module fileurl="file://$PROJECT_DIR$/../mCerebrum-DataKitAPI/datakitapi/datakitapi.iml" filepath="$PROJECT_DIR$/../mCerebrum-DataKitAPI/datakitapi/datakitapi.iml" />
       <module fileurl="file://$PROJECT_DIR$/mCerebrum-Scheduler.iml" filepath="$PROJECT_DIR$/mCerebrum-Scheduler.iml" />
       <module fileurl="file://$PROJECT_DIR$/scheduler/scheduler.iml" filepath="$PROJECT_DIR$/scheduler/scheduler.iml" />
-      <module fileurl="file://$PROJECT_DIR$/../mCerebrum-Utilities/utilities/utilities.iml" filepath="$PROJECT_DIR$/../mCerebrum-Utilities/utilities/utilities.iml" />
     </modules>
   </component>
 </project>

@@ -36,7 +36,7 @@ public class ListenData {
     private DataSource dataSource;
     private String time;
 
-    public ListenData(Type type, DataSource dataSource, String time) {
+    ListenData(Type type, DataSource dataSource, String time) {
         this.type = type;
         this.dataSource = dataSource;
         this.time = time;
@@ -52,5 +52,14 @@ public class ListenData {
 
     public String getTime() {
         return time;
+    }
+    public String toString(){
+        switch(type){
+            case TIME:
+                return "time("+this.time+")";
+            case DATASOURCE:
+                return "datasource("+dataSource.getType()+","+dataSource.getId()+")";
+        }
+        return "null";
     }
 }

@@ -1,7 +1,10 @@
 package org.md2k.scheduler;
 
 import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
@@ -21,7 +24,6 @@ import rx.Subscription;
 import rx.android.schedulers.AndroidSchedulers;
 
 public class ActivityMain extends AppCompatActivity {
-    private static final String TAG = ActivityMain.class.getSimpleName();
     Subscription subscription;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,6 +38,14 @@ public class ActivityMain extends AppCompatActivity {
                 load();
             }
         });
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            // Show alert dialog to the user saying a separate permission is needed
+            // Launch the settings activity if the user prefers
+            Intent myIntent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+            myIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            myIntent.setData(Uri.parse("package:" + getPackageName()));
+            this.startActivity(myIntent);
+        }
     }
 
     private void load() {
@@ -81,7 +91,8 @@ public class ActivityMain extends AppCompatActivity {
         super.onPause();
     }
     private Observable<Boolean> getObservableTime(){
-        return Observable.interval(1000, TimeUnit.MILLISECONDS,AndroidSchedulers.mainThread())
+        return Observable.interval(1000, TimeUnit.MILLISECONDS).observeOn(AndroidSchedulers.mainThread()).onBackpressureLatest()
+
                 .map(aLong -> {
 
                     long time = AppInfo.serviceRunningTime(ActivityMain.this, ServiceScheduler.class.getName());

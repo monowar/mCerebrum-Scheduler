@@ -29,30 +29,40 @@ package org.md2k.scheduler.condition.function;
 import com.udojava.evalex.Expression;
 
 import org.md2k.datakitapi.datatype.DataType;
-import org.md2k.datakitapi.datatype.DataTypeDouble;
 import org.md2k.datakitapi.datatype.DataTypeDoubleArray;
-import org.md2k.datakitapi.datatype.DataTypeLong;
 import org.md2k.datakitapi.source.application.ApplicationBuilder;
 import org.md2k.datakitapi.source.datasource.DataSourceBuilder;
 import org.md2k.datakitapi.source.datasource.DataSourceClient;
 import org.md2k.datakitapi.source.datasource.DataSourceType;
-import org.md2k.datakitapi.time.DateTime;
 import org.md2k.scheduler.datakit.DataKitManager;
-import org.md2k.scheduler.time.Time;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class get_phone_battery extends Function {
-    public get_phone_battery(DataKitManager dataKitManager) {
-        super(dataKitManager);
+    public get_phone_battery() {
+        super("get_phone_battery");
     }
 
-    public Expression add(Expression e) {
-        e.addLazyFunction(e.new LazyFunction("get_phone_battery", 0) {
+    public Expression add(Expression e, ArrayList<String> details) {
+        e.addLazyFunction(e.new LazyFunction(name, 0) {
             @Override
             public Expression.LazyNumber lazyEval(List<Expression.LazyNumber> lazyParams) {
-                return create(getBattery());
+                double res = getBattery();
+                details.add(name);
+                details.add(name+"()");
+                if(res==200){
+                    details.add("100 [datasource not found]");
+                    res=100;
+                }else if(res==300){
+                    details.add("100 [data not found]");
+                    res=100;
+                }
+                else {
+                    details.add(String.format(Locale.getDefault(), "%.2f", res));
+                }
+                return create(res);
             }
         });
         return e;
@@ -60,9 +70,9 @@ public class get_phone_battery extends Function {
     private double getBattery(){
         ApplicationBuilder a = new ApplicationBuilder().setId("org.md2k.phonesensor");
         DataSourceBuilder d = new DataSourceBuilder().setType(DataSourceType.BATTERY).setApplication(a.build());
-        ArrayList<DataSourceClient> dsc = dataKitManager.find(d.build());
+        ArrayList<DataSourceClient> dsc = DataKitManager.getInstance().find(d.build());
         if(dsc.size()==0) return 200;
-        ArrayList<DataType> dt = dataKitManager.query(dsc.get(0), 1);
+        ArrayList<DataType> dt = DataKitManager.getInstance().query(dsc.get(0), 1);
         if(dt.size()==0) return 300;
         return ((DataTypeDoubleArray) dt.get(0)).getSample()[0];
     }

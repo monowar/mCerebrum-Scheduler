@@ -26,15 +26,15 @@ package org.md2k.scheduler.configuration2object;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import android.content.Context;
-
 import org.md2k.scheduler.State;
 import org.md2k.scheduler.condition.ConditionManager;
 import org.md2k.scheduler.configuration.Configuration;
 import org.md2k.scheduler.datakit.DataKitManager;
 import org.md2k.scheduler.exception.ConfigurationFileFormatError;
 import org.md2k.scheduler.operation.AbstractOperation;
+import org.md2k.scheduler.operation.notification.None;
 import org.md2k.scheduler.operation.notification.PhoneDialog;
+import org.md2k.scheduler.operation.notification.PhoneScreen;
 import org.md2k.scheduler.operation.notification.PhoneTone;
 import org.md2k.scheduler.operation.notification.PhoneVibrate;
 import org.md2k.scheduler.time.Time;
@@ -48,20 +48,31 @@ class Config2Notification {
     private static final String TYPE_NOTIFICATION_PHONE_TONE = "PHONE_TONE";
     private static final String TYPE_NOTIFICATION_PHONE_SCREEN = "PHONE_SCREEN";
     private static final String TYPE_NOTIFICATION_PHONE_DIALOG = "PHONE_DIALOG";
-    private static final String TYPE_NOTIFICATION_PHONE_DIALOG_SINGLE_CHOICE = "PHONE_DIALOG_SINGLE_CHOICE";
+    private static final String TYPE_NOTIFICATION_NONE = "NONE";
 
 
-    public static Observable<State> getObservable(Context context, String _type, String _id, DataKitManager dataKitManager, Configuration.CNotificationList[] notification_list, Configuration.CNotificationDetails[] notification_details, ConditionManager conditionManager, String id) {
+    public static Observable<State> getObservable(String path, String _type, String _id, Configuration.CNotificationList[] notification_list, Configuration.CNotificationDetails[] notification_details, String id) {
         ArrayList<Observable<State>> observables = new ArrayList<>();
         Configuration.CNotification[] cNotificationList = get(notification_list, id);
-        if (cNotificationList == null) return null;
-        String[] cNotificationDetailsIds = get(cNotificationList, conditionManager);
-        if (cNotificationDetailsIds == null) return null;
+        if (cNotificationList == null) {
+            return null;
+        }
+        String[] cNotificationDetailsIds = get(cNotificationList);
+        if (cNotificationDetailsIds == null) {
+            DataKitManager.getInstance().insertSystemLog("ERROR", path+"/notification("+id+")", "not found in the configuration file");
+            return null;
+        }
         for (String cNotificationDetailsId : cNotificationDetailsIds) {
             AbstractOperation o = get(notification_details, cNotificationDetailsId);
             if (o != null)
-                observables.add(o.getObservable(context, _type, _id));
+                observables.add(o.getObservable(path+"/notification("+cNotificationDetailsId+")", _type, _id));
         }
+        if(observables.size()==0){
+            DataKitManager.getInstance().insertSystemLog("ERROR", path+"/notification("+id+")", "details not found in the configuration file");
+            return null;
+        }
+        if(observables.size()==1) return observables.get(0);
+        else
         return Observable.merge(observables);
     }
 
@@ -81,16 +92,23 @@ class Config2Notification {
                 case TYPE_NOTIFICATION_PHONE_VIBRATE:
                     interval = Time.getTime(cNotificationDetails.getInterval());
                     at = getTime(cNotificationDetails.getAt());
-                    return new PhoneVibrate(cNotificationDetails.getRepeat(), interval, at);
+                    return new PhoneVibrate(cNotificationDetails.getRepeat(), interval, at, cNotificationDetails.getBase());
                 case TYPE_NOTIFICATION_PHONE_TONE:
                     interval = Time.getTime(cNotificationDetails.getInterval());
                     at = getTime(cNotificationDetails.getAt());
-                    return new PhoneTone(cNotificationDetails.getFormat(), cNotificationDetails.getRepeat(), interval, at);
+                    return new PhoneTone(cNotificationDetails.getFormat(), cNotificationDetails.getRepeat(), interval, at, cNotificationDetails.getBase());
                 case TYPE_NOTIFICATION_PHONE_DIALOG:
                     interval = Time.getTime(cNotificationDetails.getInterval());
                     String[] buttons = getButtons(cNotificationDetails.getMessage().getButtons());
                     boolean[] confirms = getConfirms(cNotificationDetails.getMessage().getButtons());
-                    return new PhoneDialog(cNotificationDetails.getMessage().getTitle(), cNotificationDetails.getMessage().getContent(), buttons, confirms, Time.getTime(cNotificationDetails.getAt()[0]), interval);
+                    return new PhoneDialog(cNotificationDetails.getMessage().getTitle(), cNotificationDetails.getMessage().getContent(), buttons, confirms, Time.getTime(cNotificationDetails.getAt()[0]), interval,cNotificationDetails.getBase());
+                case TYPE_NOTIFICATION_PHONE_SCREEN:
+                    interval = Time.getTime(cNotificationDetails.getInterval());
+                    at = getTime(cNotificationDetails.getAt());
+                    return new PhoneScreen(cNotificationDetails.getRepeat(), interval, at, cNotificationDetails.getBase());
+                case TYPE_NOTIFICATION_NONE:
+                    interval = Time.getTime(cNotificationDetails.getInterval());
+                    return new None(interval,Time.getTime(cNotificationDetails.getAt()[0]), cNotificationDetails.getBase());
 
             }
         } catch (Exception e) {
@@ -132,9 +150,9 @@ class Config2Notification {
         return null;
     }
 
-    private static String[] get(Configuration.CNotification[] cNotifications, ConditionManager conditionManager) {
+    private static String[] get(Configuration.CNotification[] cNotifications) {
         for (Configuration.CNotification cNotification : cNotifications) {
-            if(conditionManager.isTrue(cNotification.getCondition()))
+            if(ConditionManager.getInstance().isTrue(cNotification.getCondition()))
                 return cNotification.getNotification_details_id();
         }
         return null;

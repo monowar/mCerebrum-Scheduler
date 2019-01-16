@@ -28,26 +28,29 @@ package org.md2k.scheduler.condition.function;
 
 import com.udojava.evalex.Expression;
 
-import org.md2k.scheduler.datakit.DataKitManager;
-
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class time_offset extends Function {
-    public time_offset(DataKitManager dataKitManager) {
-        super(dataKitManager);
+    public time_offset() {
+        super("time_offset");
     }
 
-    public Expression add(Expression e) {
-        e.addLazyFunction(e.new LazyFunction("time_offset", 1) {
+    public Expression add(Expression e, ArrayList<String> details) {
+        e.addLazyFunction(e.new LazyFunction(name, 1) {
             @Override
             public Expression.LazyNumber lazyEval(final List<Expression.LazyNumber> lazyParams) {
                 return new Expression.LazyNumber() {
                     @Override
                     public BigDecimal eval() {
-                        return new BigDecimal(getValue(lazyParams.get(0).getString()));
+//                        String s = name+"("+lazyParams.get(0).getString()+")=";
+                        long res = getValue(lazyParams.get(0).getString());
+//                        s+=String.format(Locale.getDefault(), "%d",res);
+//                        d.add(s);
+                        return new BigDecimal(res);
                     }
 
                     @Override

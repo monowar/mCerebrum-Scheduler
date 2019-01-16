@@ -1,4 +1,4 @@
-package org.md2k.scheduler.operation.incentive;
+package org.md2k.scheduler;
 /*
  * Copyright (c) 2016, The University of Memphis, MD2K Center
  * - Syed Monowar Hossain <monowar.hossain@gmail.com>
@@ -26,31 +26,35 @@ package org.md2k.scheduler.operation.incentive;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import org.md2k.datakitapi.source.datasource.DataSource;
+import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+import android.provider.Settings;
+import android.util.Log;
 
-public class IncentiveData {
-    private double incentive;
-    private DataSource data_source;
-    private String condition;
-    private String[] messages;
-    private String[] skip;
-    public double getIncentive() {
-        return incentive;
-    }
+import org.md2k.mcerebrum.commons.permission.ActivityPermission;
+import org.md2k.mcerebrum.commons.permission.Permission;
+import org.md2k.mcerebrum.core.access.MCerebrum;
+import org.md2k.mcerebrum.core.access.MCerebrumInfo;
 
-    public String getCondition() {
-        return condition;
-    }
-
-    public String[] getMessages() {
-        return messages;
-    }
-
-    public DataSource getData_source() {
-        return data_source;
-    }
-
-    public String[] getSkip() {
-        return skip;
+public class MyMCerebrumInit extends MCerebrumInfo {
+    @Override
+    public void update(final Context context){
+        Log.d("abc","MyMCerebrumInit -> update()");
+        MCerebrum.setBackgroundService(context, ServiceScheduler.class);
+        if(!Permission.hasPermission(context)){
+            Intent intent = new Intent(context, ActivityPermission.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+            // Show alert dialog to the user saying a separate permission is needed
+            // Launch the settings activity if the user prefers
+            Intent myIntent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+            myIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            myIntent.setData(Uri.parse("package:" + context.getPackageName()));
+            context.startActivity(myIntent);
+        }
     }
 }

@@ -30,6 +30,7 @@ import com.udojava.evalex.Expression;
 
 import org.md2k.scheduler.condition.function.Function;
 import org.md2k.scheduler.condition.function.day_of_week;
+import org.md2k.scheduler.condition.function.get_2nd_last_sample_time;
 import org.md2k.scheduler.condition.function.get_data_quality;
 import org.md2k.scheduler.condition.function.get_last_sample;
 import org.md2k.scheduler.condition.function.get_last_sample_time;
@@ -41,67 +42,95 @@ import org.md2k.scheduler.condition.function.is_active_day;
 import org.md2k.scheduler.condition.function.is_day_of_week;
 import org.md2k.scheduler.condition.function.is_driving;
 import org.md2k.scheduler.condition.function.is_privacy_on;
-import org.md2k.scheduler.condition.function.is_stress_now;
 import org.md2k.scheduler.condition.function.now;
+import org.md2k.scheduler.condition.function.random;
 import org.md2k.scheduler.condition.function.time_offset;
 import org.md2k.scheduler.condition.function.today;
-import org.md2k.scheduler.datakit.DataKitManager;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Locale;
 
 public class ConditionManager {
     private ArrayList<Function> functions;
+    private static ConditionManager instance;
+    public static ConditionManager getInstance() {
+        if(instance==null) instance = new ConditionManager();
+        return instance;
+    }
 
-    public ConditionManager(DataKitManager dataKitManager) {
+    private ConditionManager() {
         functions = new ArrayList<>();
 
-        functions.add(new day_of_week(dataKitManager));
+        functions.add(new day_of_week());
 
-        functions.add(new get_data_quality(dataKitManager));
-        functions.add(new get_last_sample(dataKitManager));
-        functions.add(new get_last_sample_time(dataKitManager));
-        functions.add(new get_phone_battery(dataKitManager));
-        functions.add(new get_sample_no(dataKitManager));
+        functions.add(new get_data_quality());
+        functions.add(new get_last_sample());
+        functions.add(new get_last_sample_time());
+        functions.add(new get_2nd_last_sample_time());
+        functions.add(new get_phone_battery());
+        functions.add(new get_sample_no());
 
-        functions.add(new get_study_week(dataKitManager));
-        functions.add(new is_active(dataKitManager));
-        functions.add(new is_active_day(dataKitManager));
-        functions.add(new is_day_of_week(dataKitManager));
-        functions.add(new is_driving(dataKitManager));
-        functions.add(new is_privacy_on(dataKitManager));
-        functions.add(new is_stress_now(dataKitManager));
+        functions.add(new get_study_week());
+        functions.add(new is_active());
+        functions.add(new is_active_day());
+        functions.add(new is_day_of_week());
+        functions.add(new is_driving());
+        functions.add(new is_privacy_on());
 
+        functions.add(new now());
+        functions.add(new time_offset());
+        functions.add(new today());
 
-        functions.add(new now(dataKitManager));
-        functions.add(new time_offset(dataKitManager));
-        functions.add(new today(dataKitManager));
+        functions.add(new random());
 
     }
 
-    public String prepare(String str) {
+    private String prepare(String str) {
         str = uppercaseFix(str);
         for (int i = 0; i < functions.size(); i++)
             str = functions.get(i).prepare(str);
         return str;
     }
     private String uppercaseFix(String s){
-        return s.replaceAll("([A-Z]+(_[A-Z]+)*)","\"$1\"");
+        return s.replaceAll("([A-Z]+(_*[A-Z]*[0-9]*)*)","\"$1\"");
     }
     public boolean isTrue(String str){
-        BigDecimal res = evaluate(str);
+        return isTrue(str, new ArrayList<>());
+    }
+    public boolean isTrue(String str, ArrayList<String> details){
+        BigDecimal res = evaluate(str, details);
         return res.doubleValue() != 0;
     }
+    public BigDecimal evaluate(String str){
+        return evaluate(str, new ArrayList<>());
+    }
 
-    public BigDecimal evaluate(String str) {
-        if(str==null || str.length()==0 || str.equalsIgnoreCase("true")) return new BigDecimal(1);
-        if(str.equalsIgnoreCase("false")) return new BigDecimal(0);
+    public BigDecimal evaluate(String str, ArrayList<String> details) {
+
+        if(str==null || str.length()==0 || str.equalsIgnoreCase("true")) {
+            details.add("condition");
+            if(str==null) details.add("null");
+            else details.add(str);
+            details.add("1");
+            return new BigDecimal(1);
+        }
+        if(str.equalsIgnoreCase("false")) {
+            details.add("condition");
+            details.add(str);
+            details.add("0");
+            return new BigDecimal(0);
+        }
         String strNew = prepare(str);
         Expression ex = new Expression(strNew);
         ex = ex.setPrecision(0);
-
         for (int i = 0; i < functions.size(); i++)
-            ex = functions.get(i).add(ex);
-        return ex.eval();
+            ex = functions.get(i).add(ex, details);
+        BigDecimal res=ex.eval();
+        details.add("condition");
+        details.add(str);
+        details.add(String.format(Locale.getDefault(),"%.2f",res.doubleValue()));
+
+        return res;
     }
 }

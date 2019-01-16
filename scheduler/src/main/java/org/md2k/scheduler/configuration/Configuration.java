@@ -99,6 +99,7 @@ public class Configuration  extends AbstractConfig{
         private String format;
         private int repeat;
         private String interval;
+        private String base;
         private String[] at;
         private CNotiPhMessage message;
 
@@ -118,6 +119,7 @@ public class Configuration  extends AbstractConfig{
             return at;
         }
 
+        public String getBase(){ return base;}
         public CNotiPhMessage getMessage() {
             return message;
         }

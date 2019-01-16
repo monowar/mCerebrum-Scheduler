@@ -30,13 +30,11 @@ import com.udojava.evalex.Expression;
 
 import org.md2k.datakitapi.datatype.DataType;
 import org.md2k.datakitapi.datatype.DataTypeDoubleArray;
-import org.md2k.datakitapi.datatype.DataTypeIntArray;
 import org.md2k.datakitapi.source.application.ApplicationBuilder;
 import org.md2k.datakitapi.source.datasource.DataSourceBuilder;
 import org.md2k.datakitapi.source.datasource.DataSourceClient;
 import org.md2k.datakitapi.source.datasource.DataSourceType;
 import org.md2k.datakitapi.time.DateTime;
-import org.md2k.mcerebrum.core.data_format.DATA_QUALITY;
 import org.md2k.mcerebrum.core.data_format.DataFormat;
 import org.md2k.mcerebrum.core.data_format.ResultType;
 import org.md2k.scheduler.datakit.DataKitManager;
@@ -45,18 +43,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class is_driving extends Function {
-    public is_driving(DataKitManager dataKitManager) {
-        super(dataKitManager);
+    public is_driving() {
+        super("is_driving");
     }
 
-    public Expression add(Expression e) {
-        e.addLazyFunction(e.new LazyFunction("is_driving", -1) {
+    public Expression add(Expression e, ArrayList<String> details) {
+        e.addLazyFunction(e.new LazyFunction(name, 2) {
             @Override
             public Expression.LazyNumber lazyEval(List<Expression.LazyNumber> lazyParams) {
-                DataSourceBuilder d = createDataSource(lazyParams, 2);
                 long sTime = lazyParams.get(0).eval().longValue();
                 long eTime = lazyParams.get(1).eval().longValue();
-                boolean isDriving = isDriving(sTime, eTime);
+                boolean isDriving = isDriving(sTime, eTime, details);
                 if(isDriving) return create(1);
                 else return create(0);
             }
@@ -64,20 +61,35 @@ public class is_driving extends Function {
         return e;
     }
 
-    public boolean isDriving(long sTime, long eTime) {
+    public boolean isDriving(long sTime, long eTime, ArrayList<String> details) {
+        String ss = DateTime.convertTimeStampToDateTime(sTime)+", "+DateTime.convertTimeStampToDateTime(eTime);
         ApplicationBuilder applicationBuilder = new ApplicationBuilder().setId("org.md2k.phonesensor");
         DataSourceBuilder dataSourceBuilder = new DataSourceBuilder().setType(DataSourceType.ACTIVITY_TYPE).setApplication(applicationBuilder.build());
-        ArrayList<DataSourceClient> dataSourceClientArrayList = dataKitManager.find(dataSourceBuilder.build());
-        if (dataSourceClientArrayList.size() == 0) return false;
-        ArrayList<DataType> dataTypes = dataKitManager.query(dataSourceClientArrayList.get(0), sTime, eTime);
-        if (dataTypes.size() == 0) return false;
-
+        ArrayList<DataSourceClient> dataSourceClientArrayList = DataKitManager.getInstance().find(dataSourceBuilder.build());
+        details.add(name);
+        details.add(name+"("+ss+")");
+        if (dataSourceClientArrayList.size() == 0) {
+            details.add("0 [datasource not found]");
+            return false;
+        }
+        ArrayList<DataType> dataTypes = DataKitManager.getInstance().query(dataSourceClientArrayList.get(0), sTime, eTime);
+        if (dataTypes.size() == 0) {
+            details.add("0 [data not found]");
+            return false;
+        }
+        int count = 0;
         for (int i = 0; i < dataTypes.size(); i++) {
             double samples[] = ((DataTypeDoubleArray) dataTypes.get(i)).getSample();
-            if (samples[DataFormat.ActivityType.Type] == ResultType.ActivityType.IN_VEHICLE)
-                return true;
+            if (samples[DataFormat.ActivityType.Type] == ResultType.ActivityType.IN_VEHICLE) {
+                count++;
+            }
         }
-        return false;
+        boolean result;
+        if((double)(count)/dataTypes.size()<.01)
+            result =  false;
+        else result = true;
+        details.add(String.valueOf(result)+" [datapoint="+String.valueOf(dataTypes.size())+" driving="+String.valueOf(count)+" ratio="+String.format("%.2f",(double)(count)/dataTypes.size())+"]");
+        return result;
     }
 
     public String prepare(String s) {

@@ -26,12 +26,10 @@ package org.md2k.scheduler.operation;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import android.content.Context;
-
 import org.md2k.scheduler.State;
 
 import rx.Observable;
 
 public abstract class AbstractOperation {
-    public abstract Observable<State> getObservable(Context context, String type, String id);
+    public abstract Observable<State> getObservable(String path, String type, String id);
 }

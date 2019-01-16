@@ -28,7 +28,6 @@ package org.md2k.scheduler._test;
 
 import android.util.Log;
 
-import org.md2k.scheduler.datakit.DataKitManager;
 import org.md2k.scheduler.listen.Listen;
 import org.md2k.scheduler.listen.ListenData;
 
@@ -36,12 +35,11 @@ import rx.Observer;
 
 public class ListenTest {
     private Listen listen;
-    private DataKitManager dataKitManager;
     void test(){
-        listen=new Listen(dataKitManager);
+        listen=new Listen();
         listen.add("22:18:00");
         listen.add("22:18:30");
-        listen.getObservable().subscribe(new Observer<ListenData>() {
+        listen.getObservable("null").subscribe(new Observer<ListenData>() {
             @Override
             public void onCompleted() {
                 Log.d("abc","onCompleted");

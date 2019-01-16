@@ -26,7 +26,7 @@ package org.md2k.scheduler.configuration2object;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import android.content.Context;
+
 
 import org.md2k.scheduler.State;
 import org.md2k.scheduler.condition.ConditionManager;
@@ -34,19 +34,29 @@ import org.md2k.scheduler.configuration.Configuration;
 import org.md2k.scheduler.datakit.DataKitManager;
 import org.md2k.scheduler.operation.incentive.IncentiveOperation;
 
+import java.util.ArrayList;
+
 import rx.Observable;
 
 class Config2Incentive {
-    public static Observable<State> getObservable(Context context, String _type, String _id, DataKitManager dataKitManager, Configuration.CIncentiveList[] incentive_list, ConditionManager conditionManager, String id) {
+    public static Observable<State> getObservable(String path, String _type, String _id, Configuration.CIncentiveList[] incentive_list, String id) {
         Configuration.CIncentive[] cIncentives=get(incentive_list, id);
         if(cIncentives==null) return null;
-        Configuration.CIncentive cIncentive = get(cIncentives, conditionManager);
+        Configuration.CIncentive cIncentive = get(path, cIncentives);
         if(cIncentive==null) return null;
-        return new IncentiveOperation(dataKitManager, cIncentive.getAmount(), cIncentive.getMessage(), 60000).getObservable(context, _type, _id);
+        return new IncentiveOperation(cIncentive.getAmount(), cIncentive.getMessage(), 60000).getObservable(path, _type, _id);
     }
-    private static Configuration.CIncentive get(Configuration.CIncentive[] cIncentives, ConditionManager conditionManager){
+    private static Configuration.CIncentive get(String path, Configuration.CIncentive[] cIncentives){
         for (Configuration.CIncentive cIncentive : cIncentives) {
-            if(conditionManager.isTrue(cIncentive.getCondition()))
+            ArrayList<String> details=new ArrayList<>();
+            boolean condition= ConditionManager.getInstance().isTrue(cIncentive.getCondition(), details);
+            String s = "";
+            for(int i=0;i<details.size();i+=3) {
+                if(i+2>=details.size()) continue;
+                s += details.get(i + 1).replace(",", ";") + "=" + details.get(i + 2).replace(",", ";") + ";";
+            }
+            DataKitManager.getInstance().insertSystemLog("DEBUG",path+"/incetive/condition",String.valueOf(condition)+" ["+s+"]");
+            if(condition)
                 return cIncentive;
         }
         return null;

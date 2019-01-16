@@ -7,16 +7,20 @@ import android.content.IntentFilter;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
+
 import org.md2k.datakitapi.time.DateTime;
+import org.md2k.scheduler.MyApplication;
 import org.md2k.scheduler.State;
+import org.md2k.scheduler.datakit.DataKitManager;
 import org.md2k.scheduler.operation.AbstractOperation;
+import org.md2k.scheduler.time.Time;
 
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import rx.Observable;
 import rx.Subscriber;
 import rx.functions.Func1;
+import rx.schedulers.Schedulers;
 
 /*
  * Copyright (c) 2016, The University of Memphis, MD2K Center
@@ -51,88 +55,108 @@ public class PhoneDialog extends AbstractOperation {
     private long at;
     private long interval;
     private BroadcastReceiver mMessageReceiver;
+    private String base;
 
-    public PhoneDialog(String title, String content, String[] buttons, boolean[] confirm, long at, long interval) {
+    public PhoneDialog(String title, String content, String[] buttons, boolean[] confirm, long at, long interval, String base) {
         this.title = title;
         this.content = content;
         this.buttons = buttons;
         this.confirm = confirm;
         this.at = at;
         this.interval = interval;
+        this.base = base;
     }
 
     @Override
-    public Observable<State> getObservable(Context context, String _type, String _id) {
-        long curTime = DateTime.getDateTime();
+    public Observable<State> getObservable(String path, String _type, String _id) {
         return Observable.from(new Long[]{at})
-                .map(delay -> {
-                    if (delay <= 0) delay = 1L;
-                    return delay;
-                })
-                .flatMap(new Func1<Long, Observable<? extends Long>>() {
+                .map(new Func1<Long, Long>() {
                     @Override
-                    public Observable<? extends Long> call(Long delay) {
-                        return Observable.just(0L).delay(delay, TimeUnit.MILLISECONDS);
+                    public Long call(Long delay) {
+                        if (base != null) {
+                            long dl;
+                            long trigTime = delay + Time.getToday() + Time.getTime(base);
+                            long curTime = DateTime.getDateTime();
+                            if (trigTime > curTime) dl = trigTime - curTime;
+                            else if (trigTime + 5000 > curTime) dl = 0L;
+                            else dl = -1L;
+                            return dl;
+
+                        } else {
+                            if (delay <= 0) delay = 0L;
+                            DataKitManager.getInstance().insertSystemLog("DEBUG",path+"/dialog", "at: "+DateTime.convertTimeStampToDateTime(DateTime.getDateTime()+delay));
+                            return delay;
+                        }
                     }
                 })
-                .flatMap(new Func1<Long, Observable<State>>() {
+                .filter(new Func1<Long, Boolean>() {
                     @Override
-                    public Observable<State> call(Long aLong) {
-                        Log.d("abc", "here");
-                        return Observable.create(new Observable.OnSubscribe<State>() {
-                            @Override
-                            public void call(Subscriber<? super State> subscriber) {
-                                showDialog(context, subscriber);
-                            }
-                        }).timeout( at + interval, TimeUnit.MILLISECONDS).onErrorReturn(new Func1<Throwable, State>() {
-                            @Override
-                            public State call(Throwable throwable) {
-                                Log.d("abc","phonedialog ... onerrorreturn="+throwable.toString());
-                                stop(context);
-                                if (throwable instanceof TimeoutException)
-                                    return new State(State.STATE.OUTPUT, "MISSED");
-                                else return null;
-                            }
-                        });
-
+                    public Boolean call(Long value) {
+                        if (value < 0) return false;
+                        else return true;
+                    }
+                }).flatMap(new Func1<Long, Observable<State>>() {
+                    @Override
+                    public Observable<State> call(Long delay) {
+                        return Observable.timer(delay, TimeUnit.MILLISECONDS)
+                                .flatMap(new Func1<Long, Observable<State>>() {
+                                    @Override
+                                    public Observable<State> call(Long aLong) {
+                                            return Observable.create(new Observable.OnSubscribe<State>() {
+                                                @Override
+                                                public void call(Subscriber<? super State> subscriber) {
+                                                    DataKitManager.getInstance().insertSystemLog("DEBUG",path+"/dialog", "showing...timeout="+String.valueOf((at + interval)/1000)+" seconds");
+                                                    showDialog(path, subscriber);
+                                                }
+                                            });
+                                    }
+                                }).timeout(at+interval, TimeUnit.MILLISECONDS).onErrorReturn(new Func1<Throwable, State>() {
+                                    @Override
+                                    public State call(Throwable throwable) {
+                                        DataKitManager.getInstance().insertSystemLog("DEBUG",path+"/dialog", "timeout occurs");
+                                        stop();
+                                        return new State(State.STATE.OUTPUT, "MISSED");
+                                    }
+                                });
                     }
                 }).doOnUnsubscribe(() -> {
-                    stop(context);
+                    stop();
                 });
     }
 
-    private void stop(Context context) {
+    private void stop() {
         try {
-            LocalBroadcastManager.getInstance(context).unregisterReceiver(mMessageReceiver);
+            LocalBroadcastManager.getInstance(MyApplication.getContext()).unregisterReceiver(mMessageReceiver);
         } catch (Exception e) {
             Log.e("abc", "PhoneDialog()..stop()..unregister_broadcast failed");
         }
         try {
             ActivityDialog.fa.finish();
-        }catch (Exception e){}
+        } catch (Exception e) {
+        }
     }
 
-    private void showDialog(Context context, Subscriber<? super State> subscriber) {
-        Log.d("abc","phone dialog...show()");
+    private void showDialog(String path, Subscriber<? super State> subscriber) {
+
         mMessageReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 // Get extra data included in the Intent
-                Log.d("abc","phone dialog onreceive()");
                 String message = intent.getStringExtra(ActivityDialog.RESULT);
+                DataKitManager.getInstance().insertSystemLog("DEBUG",path+"/dialog", "response="+message);
                 subscriber.onNext(new State(State.STATE.OUTPUT, message));
                 subscriber.onCompleted();
             }
         };
-        LocalBroadcastManager.getInstance(context).registerReceiver(mMessageReceiver,
+        LocalBroadcastManager.getInstance(MyApplication.getContext()).registerReceiver(mMessageReceiver,
                 new IntentFilter(ActivityDialog.INTENT_RESULT));
 
-        Intent intent = new Intent(context, ActivityDialog.class);
+        Intent intent = new Intent(MyApplication.getContext(), ActivityDialog.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.putExtra(ActivityDialog.TITLE, title);
         intent.putExtra(ActivityDialog.CONTENT, content);
         intent.putExtra(ActivityDialog.BUTTONS, buttons);
         intent.putExtra(ActivityDialog.CONFIRM, confirm);
-        context.startActivity(intent);
+        MyApplication.getContext().startActivity(intent);
     }
 }

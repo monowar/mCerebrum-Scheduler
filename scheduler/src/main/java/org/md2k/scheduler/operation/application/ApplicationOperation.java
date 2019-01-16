@@ -30,16 +30,15 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 import org.md2k.datakitapi.time.DateTime;
+import org.md2k.scheduler.MyApplication;
 import org.md2k.scheduler.State;
+import org.md2k.scheduler.datakit.DataKitManager;
 import org.md2k.scheduler.operation.AbstractOperation;
-import org.md2k.scheduler.operation.notification.ActivityDialog;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -61,8 +60,7 @@ public class ApplicationOperation extends AbstractOperation {
     }
 
     @Override
-    public Observable<State> getObservable(Context context, String _type, String _id) {
-        long curTime = DateTime.getDateTime();
+    public Observable<State> getObservable(String path, String _type, String _id) {
         return Observable.just(0L)
                 .map(delay -> {
                     if (delay <= 0) delay = 1L;
@@ -77,21 +75,21 @@ public class ApplicationOperation extends AbstractOperation {
                 .flatMap(new Func1<Long, Observable<State>>() {
                     @Override
                     public Observable<State> call(Long aLong) {
-                        Log.d("abc","here");
                         return Observable.create(new Observable.OnSubscribe<State>() {
                             @Override
                             public void call(Subscriber<? super State> subscriber) {
-                                triggerApp(context, _type, _id, subscriber);
+                                triggerApp(path, _type, _id, subscriber);
                             }
                         }).timeout(timeout, TimeUnit.MILLISECONDS).onErrorReturn(new Func1<Throwable, State>() {
                             @Override
                             public State call(Throwable throwable) {
-                                stop(context);
+                                DataKitManager.getInstance().insertSystemLog("DEBUG",path, " timeout");
+                                stop();
                                 if (throwable instanceof TimeoutException) {
                                     Intent intent=new Intent();
                                     intent.setAction("org.md2k.scheduler.request");
                                     intent.putExtra("TYPE","TIMEOUT");
-                                    context.sendBroadcast(intent);
+                                    MyApplication.getContext().sendBroadcast(intent);
                                     return new State(State.STATE.OUTPUT, "TIMEOUT");
                                 }
                                 else return null;
@@ -99,23 +97,17 @@ public class ApplicationOperation extends AbstractOperation {
                         });
 
                     }
-                }).doOnUnsubscribe(() -> stop(context));
+                }).doOnUnsubscribe(() -> stop());
     }
-    private void stop(Context context) {
+    private void stop() {
         try {
-            context.unregisterReceiver(mMessageReceiver);
+            MyApplication.getContext().unregisterReceiver(mMessageReceiver);
         } catch (Exception e) {
             Log.e("abc", "AppOp()..stop()..unregister_broadcast failed");
         }
-        try {
-            ActivityDialog.fa.finish();
-        } catch (Exception e) {
-            Log.e("abc", "AppOp()..stop()..unregister_broadcast failed");
-        }
-
     }
 
-    private void triggerApp(Context context, String _type, String _id, Subscriber<? super State> subscriber) {
+    private void triggerApp(String path, String _type, String _id, Subscriber<? super State> subscriber) {
         mMessageReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -124,27 +116,30 @@ public class ApplicationOperation extends AbstractOperation {
                 if("RESULT".equals(resType)) {
                     String message = intent.getStringExtra("OUTPUT");
 //                String message = intent.getStringExtra(ActivityDialog.RESULT);
-                    Log.d("abc", "message = "+message);
+                    DataKitManager.getInstance().insertSystemLog("DEBUG",path,"stop application result="+message);
                     subscriber.onNext(new State(State.STATE.OUTPUT, message));
                     subscriber.onCompleted();
                 }
             }
         };
-        context.registerReceiver(mMessageReceiver,
+        MyApplication.getContext().registerReceiver(mMessageReceiver,
                 new IntentFilter("org.md2k.scheduler.response"));
-        Intent intent = context.getPackageManager().getLaunchIntentForPackage(packageName);
+        Intent intent = MyApplication.getContext().getPackageManager().getLaunchIntentForPackage(packageName);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        Iterator it = parameters.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry pair = (Map.Entry)it.next();
-            intent.putExtra(pair.getKey().toString(), pair.getValue().toString());
-            it.remove(); // avoids a ConcurrentModificationException
+        if(parameters!=null) {
+            for (Map.Entry<String, String> entry : parameters.entrySet()) {
+                String key = entry.getKey();
+                String value = entry.getValue();
+                intent.putExtra(key, value);
+            }
         }
         if(_id!=null)
         intent.putExtra("type",_type+"_"+_id);
         else         intent.putExtra("type",_type);
         intent.putExtra("id","DATA");
-        context.startActivity(intent);
+        DataKitManager.getInstance().insertSystemLog("DEBUG",path,"start application");
+
+        MyApplication.getContext().startActivity(intent);
     }
     
 /*

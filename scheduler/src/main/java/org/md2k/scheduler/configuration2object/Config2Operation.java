@@ -27,23 +27,19 @@ package org.md2k.scheduler.configuration2object;
  */
 
 
-import android.content.Context;
-
 import org.md2k.scheduler.State;
-import org.md2k.scheduler.condition.ConditionManager;
 import org.md2k.scheduler.configuration.Configuration;
-import org.md2k.scheduler.datakit.DataKitManager;
 import org.md2k.scheduler.exception.ConfigurationFileFormatError;
 
 import rx.Observable;
 
 public class Config2Operation {
-    public static Observable<State> getObservable(Context context, String _type, String _id, DataKitManager dataKitManager, Configuration configuration, ConditionManager conditionManager, String id) throws ConfigurationFileFormatError {
-        Observable<State> o = Config2Application.getObservable(context, _type, _id, dataKitManager, configuration.getApplication_list(), conditionManager, id);
+    public static Observable<State> getObservable(String path, String _type, String _id, Configuration configuration, String id) throws ConfigurationFileFormatError {
+        Observable<State> o = Config2Application.getObservable(path, _type, _id, configuration.getApplication_list(), id);
         if (o == null)
-            o = Config2Notification.getObservable(context,_type,_id, dataKitManager, configuration.getNotification_list(), configuration.getNotification_details(), conditionManager, id);
+            o = Config2Notification.getObservable(path, _type,_id, configuration.getNotification_list(), configuration.getNotification_details(), id);
         if (o == null)
-            o = Config2Incentive.getObservable(context, _type, _id, dataKitManager, configuration.getIncentive_list(), conditionManager, id);
+            o = Config2Incentive.getObservable(path, _type, _id, configuration.getIncentive_list(), id);
         return o;
     }
 

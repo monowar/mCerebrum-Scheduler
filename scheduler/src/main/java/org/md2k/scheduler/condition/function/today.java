@@ -28,26 +28,27 @@ package org.md2k.scheduler.condition.function;
 
 import com.udojava.evalex.Expression;
 
-import org.md2k.scheduler.datakit.DataKitManager;
 import org.md2k.scheduler.time.Time;
 
 import java.math.BigDecimal;
-import java.util.Calendar;
+import java.util.ArrayList;
 import java.util.List;
 
 public class today extends Function {
-    public today(DataKitManager dataKitManager) {
-        super(dataKitManager);
+    public today() {
+        super("today");
     }
 
-    public Expression add(Expression e) {
-        e.addLazyFunction(e.new LazyFunction("today", 0) {
+    public Expression add(Expression e, ArrayList<String> details) {
+        e.addLazyFunction(e.new LazyFunction(name, 0) {
             @Override
             public Expression.LazyNumber lazyEval(List<Expression.LazyNumber> lazyParams) {
                 return new Expression.LazyNumber() {
                     @Override
                     public BigDecimal eval() {
-                        return new BigDecimal(Time.getToday());
+                        long res = Time.getToday();
+//                        d.add(name+"()="+ String.format(Locale.getDefault(), "%d",res)+" ["+ DateTime.convertTimeStampToDateTime(res)+"]");
+                        return new BigDecimal(res);
                     }
 
                     @Override

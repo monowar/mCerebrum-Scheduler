@@ -26,12 +26,12 @@ package org.md2k.scheduler.configuration;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import android.content.Context;
 import android.os.Environment;
 
 import com.google.gson.Gson;
 
 import org.md2k.mcerebrum.commons.storage.Storage;
+import org.md2k.scheduler.MyApplication;
 import org.md2k.scheduler.exception.ConfigurationFileFormatError;
 
 import java.io.BufferedReader;
@@ -50,17 +50,34 @@ public class ConfigurationManager {
         }
     }
 
-    public static Configuration readMoffitt(Context context) {
+    public static Configuration readMoffitt() {
         try {
-            BufferedReader br = new BufferedReader(new InputStreamReader(context.getAssets().open("config_moffitt.json")));
+            BufferedReader br = new BufferedReader(new InputStreamReader(MyApplication.getContext().getAssets().open("config_moffitt.json")));
             return new Gson().fromJson(br, Configuration.class);
         } catch (Exception e) {
             return null;
         }
     }
-    public static Configuration readROBAS(Context context) {
+    public static Configuration readOpioid() {
         try {
-            BufferedReader br = new BufferedReader(new InputStreamReader(context.getAssets().open("config_robas.json")));
+            BufferedReader br = new BufferedReader(new InputStreamReader(MyApplication.getContext().getAssets().open("config_opioid.json")));
+            return new Gson().fromJson(br, Configuration.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public static Configuration readRice() {
+        try {
+            BufferedReader br = new BufferedReader(new InputStreamReader(MyApplication.getContext().getAssets().open("config_rice.json")));
+            return new Gson().fromJson(br, Configuration.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+    public static Configuration readROBAS() {
+        try {
+            BufferedReader br = new BufferedReader(new InputStreamReader(MyApplication.getContext().getAssets().open("config_robas.json")));
             return new Gson().fromJson(br, Configuration.class);
         } catch (Exception e) {
             return null;

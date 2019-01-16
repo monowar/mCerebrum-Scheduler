@@ -26,33 +26,74 @@ package org.md2k.scheduler.condition.function;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+import com.google.gson.Gson;
 import com.udojava.evalex.Expression;
 
 import org.md2k.datakitapi.datatype.DataType;
-import org.md2k.datakitapi.datatype.DataTypeLong;
+import org.md2k.datakitapi.datatype.DataTypeJSONObject;
 import org.md2k.datakitapi.source.datasource.DataSourceBuilder;
 import org.md2k.datakitapi.source.datasource.DataSourceClient;
+import org.md2k.datakitapi.source.datasource.DataSourceType;
 import org.md2k.datakitapi.time.DateTime;
+import org.md2k.mcerebrum.core.data_format.privacy.PrivacyData;
 import org.md2k.scheduler.datakit.DataKitManager;
-import org.md2k.scheduler.time.Time;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class is_privacy_on extends Function {
-    public is_privacy_on(DataKitManager dataKitManager) {
-        super(dataKitManager);
+    public is_privacy_on() {
+        super("is_privacy_on");
     }
 
-    public Expression add(Expression e) {
-        e.addLazyFunction(e.new LazyFunction("is_privacy_on", 0) {
+    public Expression add(Expression e, ArrayList<String> details) {
+        e.addLazyFunction(e.new LazyFunction(name, 0) {
             @Override
             public Expression.LazyNumber lazyEval(List<Expression.LazyNumber> lazyParams) {
-                return create(0);
+                boolean b = isValid(details);
+                if (b) return create(1);
+                else return create(0);
             }
         });
         return e;
     }
+
+    private boolean isValid(ArrayList<String> details) {
+        DataSourceBuilder dataSourceBuilder = new DataSourceBuilder().setType(DataSourceType.PRIVACY);
+        ArrayList<DataSourceClient> dataSourceClientArrayList = DataKitManager.getInstance().find(dataSourceBuilder.build());
+        details.add(name);
+        details.add(name+"()");
+
+        if (dataSourceClientArrayList.size() == 0) {
+            details.add("0 [datasource not found]");
+            return false;
+        }
+        ArrayList<DataType> dataTypes = DataKitManager.getInstance().query(dataSourceClientArrayList.get(0), 1);
+        if (dataTypes.size() == 0) {
+            details.add("0 [data not found]");
+            return false;
+        }
+        DataTypeJSONObject dataTypeJSONObject = (DataTypeJSONObject) dataTypes.get(0);
+        Gson gson = new Gson();
+        PrivacyData privacyData = gson.fromJson(dataTypeJSONObject.getSample().toString(), PrivacyData.class);
+        if (privacyData.isStatus() == false) {
+            details.add("0 [privacy status=false]");
+            return false;
+        }
+        if (privacyData.getDuration().getValue() + privacyData.getStartTimeStamp() <= DateTime.getDateTime()) {
+            details.add("0 [privacy_time < current_time]");
+            return false;
+        }
+        for (int i = 0; i < privacyData.getPrivacyTypes().size(); i++) {
+            if (privacyData.getPrivacyTypes().get(i).getId().equals("ema_intervention")) {
+                details.add("1 [ema privacy enabled]");
+                return true;
+            }
+        }
+        details.add("0 [privacy is not enabled]");
+        return false;
+    }
+
     public String prepare(String s) {
         return s;
     }

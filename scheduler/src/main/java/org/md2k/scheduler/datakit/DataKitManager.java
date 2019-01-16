@@ -26,21 +26,31 @@ package org.md2k.scheduler.datakit;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import android.content.Context;
-import android.util.SparseArray;
+import android.content.Intent;
+import android.support.v4.content.LocalBroadcastManager;
+import android.util.Log;
+
+
+import com.orhanobut.logger.Logger;
 
 import org.md2k.datakitapi.DataKitAPI;
 import org.md2k.datakitapi.datatype.DataType;
+import org.md2k.datakitapi.datatype.DataTypeDoubleArray;
 import org.md2k.datakitapi.datatype.DataTypeString;
+import org.md2k.datakitapi.datatype.DataTypeStringArray;
 import org.md2k.datakitapi.exception.DataKitException;
 import org.md2k.datakitapi.source.datasource.DataSource;
 import org.md2k.datakitapi.source.datasource.DataSourceBuilder;
 import org.md2k.datakitapi.source.datasource.DataSourceClient;
+import org.md2k.datakitapi.source.datasource.DataSourceType;
 import org.md2k.datakitapi.time.DateTime;
+import org.md2k.scheduler.MyApplication;
 import org.md2k.scheduler.exception.DataKitAccessError;
 import org.md2k.scheduler.exception.DataSourceNotFound;
+import org.md2k.scheduler.logger.MyLogger;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 
 import rx.Observable;
@@ -48,13 +58,19 @@ import rx.Subscriber;
 import rx.functions.Func1;
 
 public class DataKitManager {
-    private DataKitAPI dataKitAPI;
-    private SparseArray<Boolean> isSubscribed;
+    private static DataKitManager instance;
+    private HashMap<String, DataSourceClient> dataSourceClients;
 
-    public DataKitManager() {
-        isSubscribed=new SparseArray<>();
+    public static DataKitManager getInstance() {
+        if (instance == null) instance = new DataKitManager();
+        return instance;
     }
 
+    private DataKitManager() {
+        dataSourceClients = new HashMap<>();
+    }
+
+/*
     public ArrayList<Data> getSample(DataSource dataSource, int sampleNo) throws DataKitAccessError, DataSourceNotFound {
         ArrayList<Data> data = new ArrayList<>();
         try {
@@ -62,7 +78,7 @@ public class DataKitManager {
             ArrayList<DataSourceClient> dataSourceClients = dataKitAPI.find(dataSourceBuilder);
             if (dataSourceClients.size() == 0) {
                 throw new DataSourceNotFound();
-            }else {
+            } else {
                 for (int i = 0; i < dataSourceClients.size(); i++) {
                     ArrayList<DataType> dataTypes1 = dataKitAPI.query(dataSourceClients.get(i), sampleNo);
                     for (int j = 0; j < dataTypes1.size(); j++)
@@ -76,6 +92,7 @@ public class DataKitManager {
             throw new DataSourceNotFound();
         }
     }
+
     public ArrayList<Data> getSample(DataSource dataSource, long startTime, long endTime) throws DataKitAccessError, DataSourceNotFound {
         ArrayList<Data> data = new ArrayList<>();
         try {
@@ -83,7 +100,7 @@ public class DataKitManager {
             ArrayList<DataSourceClient> dataSourceClients = dataKitAPI.find(dataSourceBuilder);
             if (dataSourceClients.size() == 0) {
                 throw new DataSourceNotFound();
-            }else {
+            } else {
                 for (int i = 0; i < dataSourceClients.size(); i++) {
                     ArrayList<DataType> dataTypes1 = dataKitAPI.query(dataSourceClients.get(i), startTime, endTime);
                     for (int j = 0; j < dataTypes1.size(); j++)
@@ -97,32 +114,44 @@ public class DataKitManager {
             throw new DataSourceNotFound();
         }
     }
+*/
 
     public ArrayList<DataSourceClient> find(final DataSource dataSource) {
         try {
+            DataKitAPI dataKitAPI = DataKitAPI.getInstance(MyApplication.getContext());
             return dataKitAPI.find(new DataSourceBuilder(dataSource));
         } catch (DataKitException e) {
-            e.printStackTrace();
+            MyLogger.getInstance().setDataKitErrorMessage("ERROR", "DataKitFind", "datasource=[" + dataSource.getType() + " " + dataSource.getId() + "] DataKitException e=" + e.getMessage());
+            LocalBroadcastManager.getInstance(MyApplication.getContext()).sendBroadcast(new Intent("DATAKIT_ERROR"));
         }
         return new ArrayList<>();
     }
 
     public Observable<Data> subscribe(DataSource dataSource) {
+        Log.d("aaa", "subscribe datasource=" + dataSource.getType() + " " + dataSource.getId());
         return Observable.create(new Observable.OnSubscribe<Data>() {
             @Override
             public void call(Subscriber<? super Data> subscriber) {
                 try {
+                    DataKitAPI dataKitAPI = DataKitAPI.getInstance(MyApplication.getContext());
                     ArrayList<DataSourceClient> dataSourceClients = find(dataSource);
                     if (dataSourceClients.size() == 0) throw new DataSourceNotFound();
                     for (int i = 0; i < dataSourceClients.size(); i++) {
                         int finalI = i;
-                        if(isSubscribed.get(dataSourceClients.get(i).getDs_id())!=null) continue;
                         dataKitAPI.subscribe(dataSourceClients.get(i), dataType -> {
-                            Data data =new Data(dataSourceClients.get(finalI), dataType);
+                            Data data = new Data(dataSourceClients.get(finalI), dataType);
                             subscriber.onNext(data);
                         });
+                        ArrayList<DataType> dataTypes = dataKitAPI.query(dataSourceClients.get(i), 1);
+                        if (dataTypes.size() != 0 && DateTime.getDateTime() - dataTypes.get(0).getDateTime() < 5000) {
+                            Data data = new Data(dataSourceClients.get(i), dataTypes.get(0));
+                            subscriber.onNext(data);
+                        }
+
+                        Log.d("abc", "subscribed=" + dataSourceClients.get(i).getDataSource().getType());
                     }
                 } catch (DataKitException e) {
+                    MyLogger.getInstance().setDataKitErrorMessage("ERROR", "DataKitSubscribe", "datasource=[" + dataSource.getType() + " " + dataSource.getId() + "] DataKitException e=" + e.getMessage());
                     subscriber.onError(new DataKitAccessError());
                 } catch (DataSourceNotFound dataSourceNotFound) {
                     subscriber.onError(dataSourceNotFound);
@@ -132,51 +161,78 @@ public class DataKitManager {
             @Override
             public Observable<?> call(Throwable throwable) {
                 if (throwable instanceof DataSourceNotFound)
-                    return Observable.timer(1000, TimeUnit.MICROSECONDS);
-                else return Observable.error(throwable);
+                    return Observable.timer(1000, TimeUnit.MILLISECONDS);
+                else {
+                    MyLogger.getInstance().setDataKitErrorMessage("ERROR", "DataKitSubscribe", "datasource=[" + dataSource.getType() + " " + dataSource.getId() + "] DataKitException e=" + throwable.getMessage());
+                    LocalBroadcastManager.getInstance(MyApplication.getContext()).sendBroadcast(new Intent("DATAKIT_ERROR"));
+                    return Observable.error(throwable);
+                }
             }
-        })).doOnUnsubscribe(() -> unsubscribe(dataSource))
+        })).doOnUnsubscribe(() -> {
+            unsubscribe(dataSource);
+        })
                 .doOnCompleted(() -> unsubscribe(dataSource))
                 .doOnError(throwable -> unsubscribe(dataSource));
     }
 
+    public void disconnect() {
+        DataKitAPI dataKitAPI = DataKitAPI.getInstance(MyApplication.getContext());
+        if (dataKitAPI != null) {
+            try {
+                dataKitAPI.disconnect();
+            } catch (Exception e) {
+            }
+        }
+    }
 
-    public void unsubscribe(DataSource dataSource){
+    private void unsubscribe(DataSource dataSource) {
         try {
+            DataKitAPI dataKitAPI = DataKitAPI.getInstance(MyApplication.getContext());
             ArrayList<DataSourceClient> dataSourceClients = find(dataSource);
             for (int i = 0; i < dataSourceClients.size(); i++) {
                 dataKitAPI.unsubscribe(dataSourceClients.get(i));
-                isSubscribed.remove(dataSourceClients.get(i).getDs_id());
 
             }
-        } catch (DataKitException ignored) {
-
+        } catch (DataKitException e) {
+            MyLogger.getInstance().setDataKitErrorMessage("ERROR", "DataKitUnSubscribe", "datasource=[" + dataSource.getType() + " " + dataSource.getId() + "] DataKitException e=" + e.getMessage());
         }
     }
-    public Observable<Boolean> connect(final Context context) {
+
+    public Observable<Boolean> connect() {
         return Observable.create(new Observable.OnSubscribe<Boolean>() {
 
             @Override
             public void call(final Subscriber<? super Boolean> subscriber) {
                 try {
-                    dataKitAPI = DataKitAPI.getInstance(context);
-                    dataKitAPI.connect(() -> subscriber.onNext(true));
+                    DataKitAPI dataKitAPI = DataKitAPI.getInstance(MyApplication.getContext());
+                    dataKitAPI.connect(() -> {
+                        subscriber.onNext(true);
+                        subscriber.onCompleted();
+                    });
+
                 } catch (Exception e) {
+                    MyLogger.getInstance().setDataKitErrorMessage("ERROR", "DataKitConnect", "DataKitException e=" + e.getMessage());
+                    LocalBroadcastManager.getInstance(MyApplication.getContext()).sendBroadcast(new Intent("DATAKIT_ERROR"));
                     subscriber.onError(e);
                 }
             }
-        }).doOnUnsubscribe(() -> dataKitAPI.disconnect()).doOnError(throwable -> dataKitAPI.disconnect());
+        });
     }
 
     public DataSourceClient register(DataSource dataSource) throws DataKitAccessError {
         try {
+            DataKitAPI dataKitAPI = DataKitAPI.getInstance(MyApplication.getContext());
             return dataKitAPI.register(new DataSourceBuilder(dataSource));
         } catch (DataKitException e) {
+            MyLogger.getInstance().setDataKitErrorMessage("ERROR", "DataKitRegister", "datasource=[" + dataSource.getType() + " " + dataSource.getId() + "] DataKitException e=" + e.getMessage());
+            LocalBroadcastManager.getInstance(MyApplication.getContext()).sendBroadcast(new Intent("DATAKIT_ERROR"));
             throw new DataKitAccessError();
         }
     }
-    public void unregister(DataSource dataSource){
+
+    public void unregister(DataSource dataSource) {
         try {
+            DataKitAPI dataKitAPI = DataKitAPI.getInstance(MyApplication.getContext());
             ArrayList<DataSourceClient> dataSourceClients = find(dataSource);
             for (int i = 0; i < dataSourceClients.size(); i++)
                 dataKitAPI.unregister(dataSourceClients.get(i));
@@ -187,42 +243,123 @@ public class DataKitManager {
 
     public void insert(DataSourceClient dataSourceClient, DataType dataType) throws DataKitAccessError {
         try {
+            DataKitAPI dataKitAPI = DataKitAPI.getInstance(MyApplication.getContext());
             dataKitAPI.insert(dataSourceClient, dataType);
         } catch (DataKitException e) {
+            MyLogger.getInstance().setDataKitErrorMessage("ERROR", "DataKitInsert", "datasource=[" + dataSourceClient.getDataSource().getType() + " " + dataSourceClient.getDataSource().getId() + "] DataKitException e=" + e.getMessage());
+            LocalBroadcastManager.getInstance(MyApplication.getContext()).sendBroadcast(new Intent("DATAKIT_ERROR"));
             throw new DataKitAccessError();
         }
     }
 
-    public void insertIncentive(double amount) {
-        //TODO: insert incentive
+    public double insertIncentive(double amount) {
+        try {
+            DataKitAPI dataKitAPI = DataKitAPI.getInstance(MyApplication.getContext());
+            DataSourceBuilder db = new DataSourceBuilder().setType(DataSourceType.INCENTIVE);
+            double total = queryTotalIncentive();
+            double[] data = new double[]{amount, total + amount};
+            DataSourceClient dsc = dataKitAPI.register(db);
+            dataKitAPI.insert(dsc, new DataTypeDoubleArray(DateTime.getDateTime(), data));
+            return total + amount;
+        } catch (Exception e) {
+            MyLogger.getInstance().setDataKitErrorMessage("ERROR", "DataKitInsertIncentive", "datasource=[INCENTIVE] DataKitException e=" + e.getMessage());
+            LocalBroadcastManager.getInstance(MyApplication.getContext()).sendBroadcast(new Intent("DATAKIT_ERROR"));
+        }
+        return amount;
     }
 
     public double queryTotalIncentive() {
-        //todo: query incentive
+        try {
+            DataKitAPI dataKitAPI = DataKitAPI.getInstance(MyApplication.getContext());
+            DataSourceBuilder db = new DataSourceBuilder().setType(DataSourceType.INCENTIVE);
+            ArrayList<DataSourceClient> dsc = dataKitAPI.find(db);
+            if (dsc.size() == 0) return 0;
+            ArrayList<DataType> dt = dataKitAPI.query(dsc.get(0), 1);
+            if (dt.size() == 0) return 0;
+            DataTypeDoubleArray d = (DataTypeDoubleArray) dt.get(0);
+            return d.getSample()[1];
+        } catch (DataKitException e) {
+            MyLogger.getInstance().setDataKitErrorMessage("ERROR", "DataKitIQueryIncentive", "datasource=[INCENTIVE] DataKitException e=" + e.getMessage());
+            LocalBroadcastManager.getInstance(MyApplication.getContext()).sendBroadcast(new Intent("DATAKIT_ERROR"));
+        }
         return 0;
     }
 
     public ArrayList<DataType> query(DataSourceClient dataSourceClient, int i) {
         try {
+            DataKitAPI dataKitAPI = DataKitAPI.getInstance(MyApplication.getContext());
             return dataKitAPI.query(dataSourceClient, i);
         } catch (DataKitException e) {
+            MyLogger.getInstance().setDataKitErrorMessage("ERROR", "DataKitQueryN", "datasource=[" + dataSourceClient.getDataSource().getType() + " " + dataSourceClient.getDataSource().getId() + "] DataKitException e=" + e.getMessage());
+            LocalBroadcastManager.getInstance(MyApplication.getContext()).sendBroadcast(new Intent("DATAKIT_ERROR"));
             return new ArrayList<DataType>();
         }
     }
 
     public ArrayList<DataType> query(DataSourceClient dataSourceClient, long sTime, long eTime) {
         try {
+            DataKitAPI dataKitAPI = DataKitAPI.getInstance(MyApplication.getContext());
             return dataKitAPI.query(dataSourceClient, sTime, eTime);
         } catch (DataKitException e) {
+            MyLogger.getInstance().setDataKitErrorMessage("ERROR", "DataKitQueryTime", "datasource=[" + dataSourceClient.getDataSource().getType() + " " + dataSourceClient.getDataSource().getId() + "] DataKitException e=" + e.getMessage());
+            LocalBroadcastManager.getInstance(MyApplication.getContext()).sendBroadcast(new Intent("DATAKIT_ERROR"));
             return new ArrayList<DataType>();
         }
     }
 
     public void insert(String type, String id, String message) {
         try {
+            DataKitAPI dataKitAPI = DataKitAPI.getInstance(MyApplication.getContext());
             DataSourceBuilder dataSourceBuilder = new DataSourceBuilder().setType(type).setId(id);
             DataSourceClient d = dataKitAPI.register(dataSourceBuilder);
             dataKitAPI.insert(d, new DataTypeString(DateTime.getDateTime(), message));
-        }catch (Exception e){}
+        } catch (Exception e) {
+            MyLogger.getInstance().setDataKitErrorMessage("ERROR", "DataKitInsert", "datasource=[" + type + " " + id + "] DataKitException e=" + e.getMessage());
+            LocalBroadcastManager.getInstance(MyApplication.getContext()).sendBroadcast(new Intent("DATAKIT_ERROR"));
+        }
+    }
+
+    public void insertSystemLog(String type, String path, String message) {
+        Logger.d(type+","+path.replace(",",";")+","+message.replace(",",";"));
+        Log.d("system_log", type + " -> " + path + " -> " + message);
+        try {
+            DataKitAPI dataKitAPI = DataKitAPI.getInstance(MyApplication.getContext());
+            if (dataSourceClients.get("SYSTEM_LOG") == null) {
+                DataSourceBuilder dataSourceBuilder = new DataSourceBuilder().setType("SYSTEM_LOG");
+                DataSourceClient d = dataKitAPI.register(dataSourceBuilder);
+                dataSourceClients.put("SYSTEM_LOG", d);
+            }
+            dataKitAPI.insert(dataSourceClients.get("SYSTEM_LOG"), new DataTypeStringArray(DateTime.getDateTime(), new String[]{DateTime.convertTimeStampToDateTime(DateTime.getDateTime()), type, path.replace(",", ";"), message.replace(",", ";")}));
+        } catch (Exception e) {
+            LocalBroadcastManager.getInstance(MyApplication.getContext()).sendBroadcast(new Intent("DATAKIT_ERROR"));
+        }
+    }
+
+    public void insertSystemLogCondition(String path, ArrayList<String> details) {
+        try {
+            DataKitAPI dataKitAPI = DataKitAPI.getInstance(MyApplication.getContext());
+            if (dataSourceClients.get("CONDITION") == null) {
+                DataSourceBuilder dataSourceBuilder = new DataSourceBuilder().setType("CONDITION");
+                DataSourceClient d = dataKitAPI.register(dataSourceBuilder);
+                dataSourceClients.put("CONDITION", d);
+            }
+            for(int i=0;i<details.size();i+=3) {
+                if(i+2>=details.size()) continue;
+
+                String[] str=new String[5];
+                str[0]=DateTime.convertTimeStampToDateTime(DateTime.getDateTime());
+                str[1]=path;
+                str[2]=details.get(i).replace(",",";");
+                str[3]=details.get(i+1).replace(",",";");
+                str[4]=details.get(i+2).replace(",",";");
+                dataKitAPI.insert(dataSourceClients.get("CONDITION"), new DataTypeStringArray(DateTime.getDateTime(), str));
+            }
+        } catch (Exception e) {
+            LocalBroadcastManager.getInstance(MyApplication.getContext()).sendBroadcast(new Intent("DATAKIT_ERROR"));
+        }
+    }
+
+    public boolean isConnected() {
+        return DataKitAPI.getInstance(MyApplication.getContext()).isConnected();
     }
 }

@@ -29,42 +29,51 @@ package org.md2k.scheduler.condition.function;
 import com.udojava.evalex.Expression;
 
 import org.md2k.datakitapi.datatype.DataType;
-import org.md2k.datakitapi.datatype.DataTypeDouble;
-import org.md2k.datakitapi.datatype.DataTypeDoubleArray;
-import org.md2k.datakitapi.datatype.DataTypeFloat;
-import org.md2k.datakitapi.datatype.DataTypeFloatArray;
-import org.md2k.datakitapi.datatype.DataTypeInt;
-import org.md2k.datakitapi.datatype.DataTypeIntArray;
-import org.md2k.datakitapi.datatype.DataTypeLong;
-import org.md2k.datakitapi.datatype.DataTypeLongArray;
-import org.md2k.datakitapi.source.application.ApplicationBuilder;
 import org.md2k.datakitapi.source.datasource.DataSourceBuilder;
 import org.md2k.datakitapi.source.datasource.DataSourceClient;
-import org.md2k.datakitapi.source.platform.PlatformBuilder;
-import org.md2k.datakitapi.source.platformapp.PlatformAppBuilder;
+import org.md2k.datakitapi.time.DateTime;
 import org.md2k.scheduler.datakit.DataKitManager;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class get_last_sample_time extends Function {
-    public get_last_sample_time(DataKitManager dataKitManager) {
-        super(dataKitManager);
+    public get_last_sample_time() {
+        super("get_last_sample_time");
     }
 
-    public Expression add(Expression e) {
-        e.addLazyFunction(e.new LazyFunction("get_last_sample_time", -1) {
+    public Expression add(Expression e, ArrayList<String> details) {
+        e.addLazyFunction(e.new LazyFunction(name, -1) {
             @Override
             public Expression.LazyNumber lazyEval(List<Expression.LazyNumber> lazyParams) {
-                DataSourceBuilder d = createDataSource(lazyParams,0);
-                ArrayList<DataSourceClient> dd = dataKitManager.find(d.build());
-                long time=Long.MIN_VALUE;
-                for (int i = 0; i < dd.size(); i++) {
-                    ArrayList<DataType> dataTypes = dataKitManager.query(dd.get(i), 1);
-                    if (dataTypes.size() == 0) continue;
-                    if(time<dataTypes.get(0).getDateTime()) time = dataTypes.get(0).getDateTime();
+                details.add(name);
+                String s=name+"(";
+                for(int i=0;i<lazyParams.size();i++) {
+                    if(i!=0) s+=",";
+                    s += lazyParams.get(i).getString();
                 }
-                return create(time);
+                details.add(s+")");
+                DataSourceBuilder db = createDataSource(lazyParams,0);
+                ArrayList<DataSourceClient> dd = DataKitManager.getInstance().find(db.build());
+                if(dd.size()==0){
+                    details.add(String.valueOf(-1)+" [datasource not found]");
+
+                    return create(-1);
+                }else {
+                    long time = -1;
+                    for (int i = 0; i < dd.size(); i++) {
+                        ArrayList<DataType> dataTypes = DataKitManager.getInstance().query(dd.get(i), 1);
+                        if (dataTypes.size() == 0) continue;
+                        if (time < dataTypes.get(0).getDateTime())
+                            time = dataTypes.get(0).getDateTime();
+                    }
+                    if(time==-1){
+                        details.add(String.valueOf(-1)+" [data not found]");
+                    }else {
+                        details.add(String.valueOf(time)+" [time="+DateTime.convertTimeStampToDateTime(time)+"]");
+                    }
+                    return create(time);
+                }
             }
         });
         return e;

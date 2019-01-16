@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
+import android.view.Gravity;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Button;
@@ -12,7 +13,6 @@ import android.widget.TextView;
 
 import org.md2k.scheduler.Constants;
 import org.md2k.scheduler.R;
-import org.md2k.scheduler.State;
 /*
  * Copyright (c) 2016, The University of Memphis, MD2K Center
  * - Syed Monowar Hossain <monowar.hossain@gmail.com>
@@ -44,9 +44,12 @@ public class ActivityIncentive extends AppCompatActivity {
     private Handler handler;
     private String[] messages;
     private long timeout;
-    private Runnable runnableClose= () -> {
-        sendMessage();
-        finish();
+    private Runnable runnableClose= new Runnable() {
+        @Override
+        public void run() {
+            ActivityIncentive.this.sendMessage();
+            ActivityIncentive.this.finish();
+        }
     };
     void setData(){
         messages=getIntent().getStringArrayExtra("message");
@@ -62,14 +65,17 @@ public class ActivityIncentive extends AppCompatActivity {
         if(messages[0]!=null && messages[0].length()!=0)
             ((TextView)findViewById(R.id.textView_message_1)).setText(messages[0]);
         else ((TextView)findViewById(R.id.textView_message_1)).setText("");
+        ((TextView)findViewById(R.id.textView_message_1)).setGravity(Gravity.CENTER);
         if(messages[1]!=null && messages[1].length()!=0)
             ((TextView)findViewById(R.id.textView_message_2)).setText(messages[1]);
         else
             ((TextView)findViewById(R.id.textView_message_2)).setText("");
+        ((TextView)findViewById(R.id.textView_message_2)).setGravity(Gravity.CENTER);
         if(messages[2]!=null && messages[2].length()!=0)
             ((TextView)findViewById(R.id.textView_message_3)).setText(messages[2]);
         else
             ((TextView)findViewById(R.id.textView_message_3)).setText("");
+        ((TextView)findViewById(R.id.textView_message_3)).setGravity(Gravity.CENTER);
         handler.postDelayed(runnableClose, timeout);
         if (getSupportActionBar() != null)
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);

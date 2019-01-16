@@ -30,45 +30,68 @@ import com.udojava.evalex.Expression;
 
 import org.md2k.datakitapi.datatype.DataType;
 import org.md2k.datakitapi.datatype.DataTypeIntArray;
-import org.md2k.datakitapi.source.application.ApplicationBuilder;
 import org.md2k.datakitapi.source.datasource.DataSourceBuilder;
 import org.md2k.datakitapi.source.datasource.DataSourceClient;
-import org.md2k.datakitapi.source.platform.PlatformBuilder;
-import org.md2k.datakitapi.source.platformapp.PlatformAppBuilder;
+import org.md2k.datakitapi.time.DateTime;
 import org.md2k.mcerebrum.core.data_format.DATA_QUALITY;
 import org.md2k.scheduler.datakit.DataKitManager;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Locale;
 
 public class get_data_quality extends Function {
-    public get_data_quality(DataKitManager dataKitManager) {
-        super(dataKitManager);
+    public get_data_quality() {
+        super("get_data_quality");
     }
 
-    public Expression add(Expression e) {
-        e.addLazyFunction(e.new LazyFunction("get_data_quality", -1) {
+    public Expression add(Expression e, ArrayList<String> details) {
+        e.addLazyFunction(e.new LazyFunction(name, -1) {
             @Override
             public Expression.LazyNumber lazyEval(List<Expression.LazyNumber> lazyParams) {
+                details.add(name);
                 //todo: check data quality code
-                double good =0;
-                DataSourceBuilder d = createDataSource(lazyParams,2);
+                double good =-1;
+                String s=name+"(";
+                DataSourceBuilder db = createDataSource(lazyParams,2);
                 long sTime = lazyParams.get(0).eval().longValue();
                 long eTime = lazyParams.get(1).eval().longValue();
                 sTime=sTime-sTime%(1000*60);
                 eTime = eTime-eTime%(1000*60);
-                ArrayList<DataSourceClient> dd = dataKitManager.find(d.build());
-                for (int i = 0; i < dd.size(); i++) {
-                    ArrayList<DataType> dataTypes = dataKitManager.query(dd.get(i), sTime, eTime);
-                    double g=getDataQuality(dataTypes, sTime, eTime);
-                    if(g>good) good = g;
+                s+= DateTime.convertTimeStampToDateTime(sTime)+", "+ DateTime.convertTimeStampToDateTime(eTime);
+                for(int i=2;i<lazyParams.size();i++)
+                    s+=","+lazyParams.get(i).getString();
+                details.add(s+")");
+                ArrayList<DataSourceClient> dd = DataKitManager.getInstance().find(db.build());
+                if(dd.size()==0){
+                    details.add("0 [datasource not found]");
+                }else {
+                    String st="";
+                    for (int i = 0; i < dd.size(); i++) {
+                        ArrayList<DataType> dataTypes = DataKitManager.getInstance().query(dd.get(i), sTime, eTime);
+                        double g = getDataQuality(dataTypes, sTime, eTime);
+                        if (g > good) {
+                            st=getDataQualityString(dataTypes, sTime, eTime);
+                            good = g;
+                        }
+                    }
+                    details.add(st);
                 }
                 return create(good);
             }
         });
         return e;
+    }
+    private String getDataQualityString(ArrayList<DataType> dataTypes, long sTime, long eTime){
+        long minute = (eTime - sTime)/(1000*60);
+        long goodMinute = 0;
+        for(int i=0;i<dataTypes.size();i++){
+            int[] res=((DataTypeIntArray)(dataTypes.get(i))).getSample();
+            if(res[DATA_QUALITY.GOOD]>30) goodMinute++;
+        }
+        double good = ((goodMinute*100.0)/minute);
+        String st=String.format(Locale.getDefault(), "%.2f",good)+"[total minute="+String.valueOf(minute)+" sample="+String.valueOf(dataTypes.size()+" good="+String.valueOf(goodMinute)+"]");
+        return st;
     }
     private double getDataQuality(ArrayList<DataType> dataTypes, long sTime, long eTime){
         long minute = (eTime - sTime)/(1000*60);

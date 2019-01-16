@@ -1,24 +1,37 @@
 package org.md2k.scheduler;
 
+import android.app.Notification;
+import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.IBinder;
+import android.os.PowerManager;
+import android.support.v4.app.NotificationCompat;
+import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
-import org.md2k.mcerebrum.commons.permission.Permission;
-import org.md2k.scheduler.condition.ConditionManager;
+
+import org.md2k.datakitapi.DataKitAPI;
+import org.md2k.datakitapi.exception.DataKitException;
+import org.md2k.datakitapi.messagehandler.OnConnectionListener;
+import org.md2k.datakitapi.time.DateTime;
 import org.md2k.scheduler.configuration.Configuration;
 import org.md2k.scheduler.configuration.ConfigurationManager;
 import org.md2k.scheduler.datakit.DataKitManager;
-import org.md2k.scheduler.exception.ConfigurationFileFormatError;
-import org.md2k.scheduler.exception.PermissionError;
 import org.md2k.scheduler.listen.Listen;
 import org.md2k.scheduler.listen.ListenData;
-import org.md2k.scheduler.logger.Logger;
+import org.md2k.scheduler.logger.MyLogger;
+import org.md2k.scheduler.resetapp.ResetApp;
+import org.md2k.scheduler.resetapp.ResetCallback;
 import org.md2k.scheduler.scheduler.Scheduler;
 import org.md2k.scheduler.what.WhatManager;
 import org.md2k.scheduler.when.WhenManager;
 
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import rx.Observable;
@@ -55,70 +68,131 @@ import rx.functions.Func1;
  */
 
 public class ServiceScheduler extends Service {
-    private static final String TAG = ServiceScheduler.class.getSimpleName();
-
-    private DataKitManager dataKitManager;
+    ResetCallback resetCallback=new ResetCallback() {
+        @Override
+        public void onReset() {
+            unsubscribe();
+            subscribe();
+        }
+    };
+    ResetApp resetApp;
     private Subscription subscription;
-    private ConditionManager conditionManager;
-    private Logger logger;
-    private String id;
     private Configuration configuration;
     private Scheduler[] schedulers;
     private AtomicBoolean isRunning;
+    PowerManager pm;
+    PowerManager.WakeLock wl;
 
     private Listen listen;
 
+
     public void onCreate() {
         super.onCreate();
-        subscription = Observable.just(true).flatMap(new Func1<Boolean, Observable<Boolean>>() {
+
+        LocalBroadcastManager.getInstance(MyApplication.getContext()).registerReceiver(mMessageReceiver,
+                new IntentFilter("DATAKIT_ERROR"));
+        try {
+            DataKitAPI.getInstance(this).connect(new OnConnectionListener() {
+                @Override
+                public void onConnected() {
+                    String[] res = MyLogger.getInstance().getDataKitErrorMessage();
+                    if(res!=null && res.length==3 && res[0]!=null && res[1]!=null && res[2]!=null){
+                        DataKitManager.getInstance().insertSystemLog("DEBUG", "BackgroundService","last error message = "+res[0]+" "+res[1]+" "+res[2]);
+                        MyLogger.getInstance().clearDataKitErrorMessage();
+                    }
+                    DataKitManager.getInstance().insertSystemLog("DEBUG", "BackgroundService","onCreate()");
+
+                    try {
+                        init();
+                        createObjects();
+                        subscribe();
+                    } catch (Exception e) {
+                        DataKitManager.getInstance().insertSystemLog("DEBUG","BackgroundService","Error: e="+e.getMessage());
+                        stopSelf();
+                    }
+                }
+            });
+        } catch (DataKitException e) {
+//            Toast.makeText(this, "Datakit connection failed: e="+e.getMessage(), Toast.LENGTH_LONG).show();
+            stopSelf();
+        }
+    }
+    void init() throws Exception {
+//        configuration = ConfigurationManager.readMoffitt();
+        configuration = ConfigurationManager.read();
+
+        if (configuration == null) throw new Exception("Invalid/No configuration file");
+        try {
+            pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if(pm==null) throw new Exception("Wakelock service not found");
+            wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "scheduler:Wakelock");
+            wl.acquire();
+        }catch (Exception e){
+            throw new Exception(e.getMessage());
+        }
+        resetApp=new ResetApp(resetCallback);
+        resetApp.start();
+
+    }
+
+    void subscribe() {
+        DataKitManager.getInstance().insertSystemLog("DEBUG","BackgroundService","Scheduler Started");
+        subscription = Observable.just(true).flatMap(new Func1<Boolean, Observable<ListenData>>() {
+                    @Override
+                    public Observable<ListenData> call(Boolean aBoolean) {
+                        return Observable.merge(Observable.just(null), listen.getObservable("BackgroundService"));
+                    }
+                }).doOnUnsubscribe(new Action0() {
+                    @Override
+                    public void call() {
+                        DataKitManager.getInstance().insertSystemLog("DEBUG","BackgroundService","Scheduler Stopping");
+                        try {
+                            for (Scheduler scheduler : schedulers) scheduler.stop("BackgroundService");
+                        } catch (Exception ignored) {
+                            DataKitManager.getInstance().insertSystemLog("ERROR","BackgroundService","Scheduler Stopping error e="+ignored.getMessage());
+                        }
+                    }
+        }).flatMap(new Func1<ListenData, Observable<ListenData>>() {
             @Override
-            public Observable<Boolean> call(Boolean aBoolean) {
-                if (!Permission.hasPermission(ServiceScheduler.this))
-                    return Observable.error(new PermissionError());
-                configuration = ConfigurationManager.readROBAS(ServiceScheduler.this);
-                if (configuration == null)
-                    return Observable.error(new ConfigurationFileFormatError());
-                dataKitManager = new DataKitManager();
-                return dataKitManager.connect(ServiceScheduler.this);
+            public Observable<ListenData> call(ListenData listenData) {
+                int[] count = new int[]{0};
+                return Observable.interval(0,1, TimeUnit.SECONDS).filter(new Func1<Long, Boolean>() {
+                    @Override
+                    public Boolean call(Long aLong) {
+                        count[0]++;
+                        if(count[0]>60) return true;
+                        if(isRunning.get()==true) return false;
+                        return true;
+                    }
+                }).take(1).map(new Func1<Long, ListenData>() {
+                    @Override
+                    public ListenData call(Long aLong) {
+                        return listenData;
+                    }
+                });
             }
-        }).map(new Func1<Boolean, Boolean>() {
-            @Override
-            public Boolean call(Boolean aBoolean) {
-                createObjects();
-                return null;
-            }
-        }).flatMap(new Func1<Boolean, Observable<ListenData>>() {
-            @Override
-            public Observable<ListenData> call(Boolean aBoolean) {
-                return Observable.merge(Observable.just(null), listen.getObservable());
-            }
-        }).map(new Func1<ListenData, Boolean>() {
-            @Override
-            public Boolean call(ListenData listenData) {
-                for (Scheduler scheduler : schedulers) scheduler.restartIfMatch(listenData);
-                return true;
-            }
-        }).doOnUnsubscribe(new Action0() {
-            @Override
-            public void call() {
-                try {
-                    for (Scheduler scheduler : schedulers) scheduler.stop();
-                }catch (Exception ignored){}
-            }
-        }).subscribe(new Observer<Boolean>() {
+        }).subscribe(new Observer<ListenData>() {
             @Override
             public void onCompleted() {
-                Log.d("abc","onCompleted()");
+                DataKitManager.getInstance().insertSystemLog("DEBUG","BackgroundService","Scheduler Completed");
+                stopSelf();
             }
 
             @Override
             public void onError(Throwable e) {
-                Log.d("abc","onError()..e="+e.toString());
+                DataKitManager.getInstance().insertSystemLog("ERROR","BackgroundService","Scheduler Error e="+e.getMessage());
+                stopSelf();
             }
 
             @Override
-            public void onNext(Boolean aBoolean) {
-                Log.d("abc","onNext()");
+            public void onNext(ListenData listenData) {
+                String type;
+                if (listenData == null)
+                    type = "init";
+                else type = listenData.toString();
+                DataKitManager.getInstance().insertSystemLog("DEBUG","BackgroundService", "Listen returns: "+type + " isRunning=" + isRunning.get());
+                if (isRunning.get() == false)
+                    for (Scheduler scheduler : schedulers) scheduler.restartIfMatch("BackgroundService/Listen("+type+")", listenData);
             }
         });
     }
@@ -133,25 +207,37 @@ public class ServiceScheduler extends Service {
 
     void createObjects() {
         schedulers = new Scheduler[configuration.getScheduler_list().length];
-        listen = new Listen(dataKitManager);
-        conditionManager=new ConditionManager(dataKitManager);
-        logger = new Logger(this, dataKitManager);
-        isRunning=new AtomicBoolean();
+        listen = new Listen();
+        isRunning = new AtomicBoolean();
         isRunning.set(false);
         for (int i = 0; i < configuration.getScheduler_list().length; i++) {
             String type = configuration.getScheduler_list()[i].getType();
             String id = configuration.getScheduler_list()[i].getId();
-            WhenManager whenManager = new WhenManager(type, id, configuration.getScheduler_list()[i].getWhen(), conditionManager, logger, isRunning);
-            WhatManager whatManager = new WhatManager(type, id, this, configuration,configuration.getScheduler_list()[i].getWhat(), dataKitManager, conditionManager, logger, isRunning);
-            schedulers[i] = new Scheduler(type, id, configuration.getScheduler_list()[i].getListen(), whenManager, whatManager, logger);
+            WhenManager whenManager = new WhenManager(type, id, configuration.getScheduler_list()[i].getWhen(), isRunning);
+            WhatManager whatManager = new WhatManager(type, id, configuration, configuration.getScheduler_list()[i].getWhat(), isRunning);
+            schedulers[i] = new Scheduler(type, id, configuration.getScheduler_list()[i].getListen(), whenManager, whatManager);
             addListen(configuration.getScheduler_list()[i].getListen());
         }
     }
 
-    @Override
-    public void onDestroy() {
+    void unsubscribe() {
         if (subscription != null && !subscription.isUnsubscribed())
             subscription.unsubscribe();
+
+    }
+
+    @Override
+    public void onDestroy() {
+        try {
+            wl.release();
+        }catch (Exception e){}
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(mMessageReceiver);
+        if(DataKitManager.getInstance().isConnected()){
+            DataKitManager.getInstance().insertSystemLog("DEBUG","BackgroundService","OnDestroy");
+        }
+        DataKitManager.getInstance().disconnect();
+        unsubscribe();
+        stopForegroundService();
         super.onDestroy();
     }
 
@@ -160,4 +246,51 @@ public class ServiceScheduler extends Service {
         throw new UnsupportedOperationException("Not yet implemented");
     }
 
+    private BroadcastReceiver mMessageReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            // Get extra data included in the Intent
+            LocalBroadcastManager.getInstance(context).unregisterReceiver(mMessageReceiver);
+            unsubscribe();
+            stopSelf();
+        }
+    };
+    private static final String TAG_FOREGROUND_SERVICE = "FOREGROUND_SERVICE";
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        startForegroundService();
+        return super.onStartCommand(intent, flags, startId);
+    }
+
+    private void startForegroundService() {
+        Log.d(TAG_FOREGROUND_SERVICE, "Start foreground service.");
+
+        // Create notification default intent.
+        Intent intent = new Intent();
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, 0);
+
+        // Create notification builder.
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
+
+        builder.setWhen(System.currentTimeMillis());
+        builder.setSmallIcon(R.mipmap.ic_launcher);
+        builder.setContentTitle("Scheduler app running...");
+
+
+        // Build the notification.
+        Notification notification = builder.build();
+
+        // Start foreground service.
+        startForeground(1, notification);
+    }
+
+    private void stopForegroundService() {
+
+        Log.d(TAG_FOREGROUND_SERVICE, "Stop foreground service.");
+
+        // Stop foreground service and remove the notification.
+        stopForeground(true);
+
+    }
 }

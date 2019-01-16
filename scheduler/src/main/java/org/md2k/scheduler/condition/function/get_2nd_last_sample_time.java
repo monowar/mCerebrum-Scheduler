@@ -29,51 +29,60 @@ package org.md2k.scheduler.condition.function;
 import com.udojava.evalex.Expression;
 
 import org.md2k.datakitapi.datatype.DataType;
-import org.md2k.datakitapi.datatype.DataTypeLong;
 import org.md2k.datakitapi.source.datasource.DataSourceBuilder;
 import org.md2k.datakitapi.source.datasource.DataSourceClient;
 import org.md2k.datakitapi.time.DateTime;
 import org.md2k.scheduler.datakit.DataKitManager;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
-public class get_study_week extends Function {
-    public get_study_week() {
-        super("get_study_week");
+public class get_2nd_last_sample_time extends Function {
+    public get_2nd_last_sample_time() {
+        super("get_2nd_last_sample_time");
     }
 
     public Expression add(Expression e, ArrayList<String> details) {
-        e.addLazyFunction(e.new LazyFunction(name, 0) {
+        e.addLazyFunction(e.new LazyFunction(name, -1) {
             @Override
             public Expression.LazyNumber lazyEval(List<Expression.LazyNumber> lazyParams) {
-                long v=Long.MIN_VALUE;
                 details.add(name);
-                details.add(name+"()");
-                DataSourceBuilder ddd = new DataSourceBuilder().setType("STUDY").setId("START");
-                ArrayList<DataSourceClient> dd = DataKitManager.getInstance().find(ddd.build());
+                String s=name+"(";
+                for(int i=0;i<lazyParams.size();i++) {
+                    if(i!=0) s+=",";
+                    s += lazyParams.get(i).getString();
+                }
+                details.add(s+")");
+                DataSourceBuilder db = createDataSource(lazyParams,0);
+                ArrayList<DataSourceClient> dd = DataKitManager.getInstance().find(db.build());
                 if(dd.size()==0){
-                    details.add(String.valueOf(Long.MIN_VALUE)+" [datasource not found]");
-                    return create(Long.MIN_VALUE);
+                    details.add(String.valueOf(-1)+" [datasource not found]");
+                    return create(-1);
                 }else {
+                    ArrayList<Long> list=new ArrayList<>();
                     for (int i = 0; i < dd.size(); i++) {
-                        ArrayList<DataType> dataTypes = DataKitManager.getInstance().query(dd.get(i), 1);
-                        if (dataTypes.size() == 0) continue;
-                        long studyStartTime = ((DataTypeLong) (dataTypes.get(0))).getSample();
-                        long curTime = DateTime.getDateTime();
-                        v = (curTime - studyStartTime) / (1000 * 60 * 60 * 24 * 7) + 1;
-                        details.add(String.valueOf(v));
-                        return create(v);
+                        ArrayList<DataType> dataTypes = DataKitManager.getInstance().query(dd.get(i), 2);
+                        for(int j=0;j<dataTypes.size();j++)
+                            list.add(dataTypes.get(j).getDateTime());
                     }
-                    details.add(String.valueOf(Long.MIN_VALUE)+" [data not found]");
-                    return create(v);
+                    Collections.sort(list);
+                    long time;
+                    if(list.size()<=1){
+                        time=-1;
+                        details.add(String.valueOf(time)+" [data not found]");
+                    }else {
+                        time = list.get(list.size()-2);
+                        details.add(String.valueOf(time)+" [time="+DateTime.convertTimeStampToDateTime(time)+"]");
+                    }
+                    return create(time);
                 }
             }
         });
         return e;
     }
+
     public String prepare(String s) {
         return s;
     }
-
 }

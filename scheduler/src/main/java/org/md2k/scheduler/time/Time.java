@@ -27,7 +27,6 @@ package org.md2k.scheduler.time;
  */
 
 import org.md2k.datakitapi.time.DateTime;
-import org.md2k.scheduler.exception.ConfigurationFileFormatError;
 
 import java.util.Calendar;
 

@@ -1,12 +1,12 @@
 {
-  "id": "MOFFITT",
+  "id": "RICE",
   "type": "STUDY",
-  "title": "Mofitt Study",
+  "title": "Rice Study",
   "scheduler_list": [
     {
-      "id": "LOW_STRESS",
-      "type": "EMI",
-      "title": "EMI for low stress",
+      "type": "EMA",
+      "id": "RANDOM",
+      "title": "Random EMA",
       "listen": {
         "datasource": [
           {
@@ -21,91 +21,27 @@
       },
       "when": [
         {
-          "start_time": "now()",
-          "end_time": "now()+time_offset(00:30:00)",
+          "condition": "is_active_day() == true",
+          "start_time": "get_last_sample(0,DAY,START)",
+          "end_time": "get_last_sample(0,DAY,START)+time_offset(04:00:00)",
           "trigger_rule": [
             {
               "trigger_time": "now()",
-              "retry_after": "time_offset(00:00:05)"
+              "condition": "is_privacy_on()==false",
+              "retry_after": "time_offset(00:00:30)"
             }
           ]
         }
       ],
       "what": [
         [
-          {
-            "action": {
-              "transition": [
-                ["MINDFULNESS_APP_STRESS_NO_TRIGGER", "", ""]
-              ]
-            }
-          }
-        ],
-        [
-          {
-            "action": {
-              "transition": [
-                ["NOTIFICATION_0_60_120_EMI", "Ok", "MINDFULNESS_APP_STRESS_TRIGGER"]
-              ]
-            }
-          }
-        ]
-      ]
-    },
-    {
-      "id": "STRESS_EMI",
-      "type": "EMA",
-      "title": "EMA for not smoking",
-      "listen": {
-        "datasource": [
-          {
-            "type": "MINDFULNESS",
-            "id": "STRESS"
-          }
-        ]
-      },
-      "when": [
-        {
-          "start_time": "get_last_sample_time(MINDFULNESS,STRESS)",
-          "end_time": "get_last_sample_time(MINDFULNESS,STRESS)+time_offset(00:01:00)",
-          "trigger_rule": [
-            {
-              "trigger_time": "now()",
-              "retry_after": "time_offset(00:00:05)"
-            }
-          ]
-        }
-      ],
-      "what": [
-        [
-          {
-            "condition": "get_sample_no(get_last_sample(0,DAY,START), now(), EMA)==0",
-            "action": {
-              "transition": [
-                ["NOTIFICATION_WITH_DELAY", "Ok", "EMA_FIRST"],
-                ["NOTIFICATION_WITH_DELAY", "Delay (5 Min)", "NOTIFICATION_DURING_DELAY"],
-                ["NOTIFICATION_DURING_DELAY", "Start Now", "EMA_FIRST"],
-                ["NOTIFICATION_DURING_DELAY", "MISSED", "NOTIFICATION_WITH_DELAY_2"],
-                ["NOTIFICATION_WITH_DELAY_2", "Ok", "EMA_FIRST"],
-                ["NOTIFICATION_WITH_DELAY_2", "Delay (5 Min)", "NOTIFICATION_DURING_DELAY_2"],
-                ["NOTIFICATION_DURING_DELAY_2", "Start Now", "EMA_FIRST"],
-                ["NOTIFICATION_DURING_DELAY_2", "MISSED", "NOTIFICATION_AFTER_DELAY"],
-                ["NOTIFICATION_AFTER_DELAY", "Ok", "EMA_FIRST"],
-                ["EMA_FIRST", "COMPLETED", "INCENTIVE_DATA_QUALITY_LAST_EMA"]
-              ]
-            }
-          },
           {
             "action": {
               "transition": [
                 ["NOTIFICATION_WITH_DELAY", "Ok", "EMA"],
-                ["NOTIFICATION_WITH_DELAY", "Delay (5 Min)", "NOTIFICATION_DURING_DELAY"],
+                ["NOTIFICATION_WITH_DELAY", "Delay (10 Min)", "NOTIFICATION_DURING_DELAY"],
                 ["NOTIFICATION_DURING_DELAY", "Start Now", "EMA"],
-                ["NOTIFICATION_DURING_DELAY", "MISSED", "NOTIFICATION_WITH_DELAY_2"],
-                ["NOTIFICATION_WITH_DELAY_2", "Ok", "EMA"],
-                ["NOTIFICATION_WITH_DELAY_2", "Delay (5 Min)", "NOTIFICATION_DURING_DELAY_2"],
-                ["NOTIFICATION_DURING_DELAY_2", "Start Now", "EMA"],
-                ["NOTIFICATION_DURING_DELAY_2", "MISSED", "NOTIFICATION_AFTER_DELAY"],
+                ["NOTIFICATION_DURING_DELAY", "MISSED", "NOTIFICATION_AFTER_DELAY"],
                 ["NOTIFICATION_AFTER_DELAY", "Ok", "EMA"],
                 ["EMA", "COMPLETED", "INCENTIVE_DATA_QUALITY_LAST_EMA"]
               ]
@@ -171,7 +107,7 @@
           },
           {
             "title": "Cancel",
-            "confirm": true
+            "confirm": false
           }
         ]
       }
@@ -181,13 +117,13 @@
       "type": "PHONE_DIALOG",
       "title": "Phone Message",
       "repeat": 1,
-      "interval": "00:10:00",
+      "interval": "00:01:00",
       "at": [
         "00:00:00"
       ],
       "message": {
         "title": "Strategy",
-        "content": "Time to take a strategy",
+        "content": "Time to take practice a strategy",
         "button": [
           {
             "title": "Ok",
@@ -195,17 +131,17 @@
           },
           {
             "title": "Cancel",
-            "confirm": true
+            "confirm": false
           }
         ]
       }
     },
     {
-      "id": "PHONE_MESSAGE_DELAY_5_MINUTE",
+      "id": "PHONE_MESSAGE_DELAY_10_MINUTE",
       "type": "PHONE_DIALOG",
       "title": "Phone Message",
       "repeat": 1,
-      "interval": "00:02:00",
+      "interval": "00:01:00",
       "at": [
         "00:00:00"
       ],
@@ -222,7 +158,7 @@
             "confirm": true
           },
           {
-            "title": "Delay (5 Min)",
+            "title": "Delay (10 Min)",
             "confirm": false
           }
         ]
@@ -233,7 +169,7 @@
       "type": "PHONE_DIALOG",
       "title": "Phone Message",
       "repeat": 1,
-      "interval": "00:10:00",
+      "interval": "00:01:00",
       "at": [
         "00:00:00"
       ],
@@ -257,33 +193,26 @@
       "type": "PHONE_DIALOG",
       "title": "Phone Message",
       "repeat": 1,
-      "interval": "00:02:00",
+      "interval": "00:01:00",
       "at": [
         "00:00:00"
       ],
       "message": {
         "type": "GENERAL",
-        "title": "Survey delayed for 5 minutes",
+        "title": "Survey delayed for 10 minutes",
         "message": "Please click \"Start\" when you are ready",
         "button": [
           {
             "title": "Start Now",
             "confirm": false
+          },
+          {
+            "title": "Cancel",
+            "confirm": true
           }
         ]
       }
-    },
-    {
-      "id": "NONE_DURING_DELAY",
-      "type": "NONE",
-      "title": "None",
-      "repeat": 1,
-      "interval": "00:00:30",
-      "at": [
-        "00:00:00"
-      ]
     }
-
   ],
   "notification_list": [
     {
@@ -300,39 +229,13 @@
       ]
     },
     {
-      "id": "NOTIFICATION_0_60_120_EMI",
-      "notification": [
-        {
-          "notification_details_id": [
-            "PHONE_VIBRATE_30_WITH_0_60_120",
-            "PHONE_TONE_30_WITH_0_60_120",
-            "PHONE_MESSAGE_EMI",
-            "PHONE_SCREEN_30"
-          ]
-        }
-      ]
-    },
-    {
       "id": "NOTIFICATION_WITH_DELAY",
       "notification": [
         {
           "notification_details_id": [
             "PHONE_VIBRATE_30_WITH_0_60_120",
             "PHONE_TONE_30_WITH_0_60_120",
-            "PHONE_MESSAGE_DELAY_5_MINUTE",
-            "PHONE_SCREEN_30"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "NOTIFICATION_WITH_DELAY_2",
-      "notification": [
-        {
-          "notification_details_id": [
-            "PHONE_VIBRATE_30_WITH_0_60_120",
-            "PHONE_TONE_30_WITH_0_60_120",
-            "PHONE_MESSAGE_DELAY_5_MINUTE",
+            "PHONE_MESSAGE_DELAY_10_MINUTE",
             "PHONE_SCREEN_30"
           ]
         }
@@ -343,17 +246,7 @@
       "notification": [
         {
           "notification_details_id": [
-            "NONE_DURING_DELAY"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "NOTIFICATION_DURING_DELAY_2",
-      "notification": [
-        {
-          "notification_details_id": [
-            "NONE_DURING_DELAY"
+            "PHONE_MESSAGE_DURING_DELAY"
           ]
         }
       ]
@@ -381,70 +274,6 @@
           "timeout": "00:10:00",
           "parameter": {
             "filename": "questionnaire.json"
-          }
-        }
-      ]
-    },
-    {
-      "id": "EMA_FIRST",
-      "application": [
-        {
-          "package_name": "org.md2k.ema",
-          "timeout": "00:10:00",
-          "parameter": {
-            "filename": "questionnaire_first.json"
-          }
-        }
-      ]
-    },
-    {
-      "id": "MINDFULNESS_APP_STRESS_TRIGGER",
-      "application": [
-        {
-          "package_name": "org.md2k.mindfulnessstrategy",
-          "timeout": "00:10:00",
-          "parameter": {
-            "trigger_type": "STRESS",
-            "trigger":"YES"
-          }
-        }
-      ]
-    },
-    {
-      "id": "MINDFULNESS_APP_STRESS_NO_TRIGGER",
-      "application": [
-        {
-          "package_name": "org.md2k.mindfulnessstrategy",
-          "timeout": "00:10:00",
-          "parameter": {
-            "trigger_type": "STRESS",
-            "trigger": "NO"
-          }
-        }
-      ]
-    },
-    {
-      "id": "MINDFULNESS_APP_SMOKING_TRIGGER",
-      "application": [
-        {
-          "package_name": "org.md2k.mindfulnessstrategy",
-          "timeout": "00:10:00",
-          "parameter": {
-            "trigger_type": "SMOKING",
-            "trigger":"YES"
-          }
-        }
-      ]
-    },
-    {
-      "id": "MINDFULNESS_APP_SMOKING_NO_TRIGGER",
-      "application": [
-        {
-          "package_name": "org.md2k.mindfulnessstrategy",
-          "timeout": "00:10:00",
-          "parameter": {
-            "trigger_type": "SMOKING",
-            "trigger":"NO"
           }
         }
       ]

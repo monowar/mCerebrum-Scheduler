@@ -26,6 +26,8 @@ package org.md2k.scheduler.condition.function;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+import android.util.Log;
+
 import com.udojava.evalex.Expression;
 
 import org.md2k.datakitapi.time.DateTime;
@@ -47,6 +49,7 @@ public class now extends Function {
                     @Override
                     public BigDecimal eval() {
                         long c = DateTime.getDateTime();
+                        Log.d("abc","now() = "+c+" "+DateTime.convertTimeStampToDateTime(c));
 //                        d.add(name+"()="+ String.format(Locale.getDefault(), "%d",c)+" ["+DateTime.convertTimeStampToDateTime(c)+"]");
                         return new BigDecimal(c);
                     }

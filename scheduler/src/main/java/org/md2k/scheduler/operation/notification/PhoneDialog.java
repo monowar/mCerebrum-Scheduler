@@ -4,9 +4,10 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
+
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.md2k.datakitapi.time.DateTime;
 import org.md2k.scheduler.MyApplication;
@@ -20,7 +21,6 @@ import java.util.concurrent.TimeUnit;
 import rx.Observable;
 import rx.Subscriber;
 import rx.functions.Func1;
-import rx.schedulers.Schedulers;
 
 /*
  * Copyright (c) 2016, The University of Memphis, MD2K Center

@@ -26,6 +26,8 @@ package org.md2k.scheduler.condition.function;
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+import android.util.Log;
+
 import com.udojava.evalex.Expression;
 
 import java.math.BigDecimal;
@@ -48,6 +50,7 @@ public class time_offset extends Function {
                     public BigDecimal eval() {
 //                        String s = name+"("+lazyParams.get(0).getString()+")=";
                         long res = getValue(lazyParams.get(0).getString());
+                        Log.d("abc","time_offset("+lazyParams.get(0).getString()+") ="+res);
 //                        s+=String.format(Locale.getDefault(), "%d",res);
 //                        d.add(s);
                         return new BigDecimal(res);

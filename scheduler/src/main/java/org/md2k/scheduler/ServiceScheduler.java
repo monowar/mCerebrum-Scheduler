@@ -9,15 +9,14 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.IBinder;
 import android.os.PowerManager;
-import android.support.v4.app.NotificationCompat;
-import android.support.v4.content.LocalBroadcastManager;
+import androidx.core.app.NotificationCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import android.util.Log;
 
 
 import org.md2k.datakitapi.DataKitAPI;
 import org.md2k.datakitapi.exception.DataKitException;
 import org.md2k.datakitapi.messagehandler.OnConnectionListener;
-import org.md2k.datakitapi.time.DateTime;
 import org.md2k.scheduler.configuration.Configuration;
 import org.md2k.scheduler.configuration.ConfigurationManager;
 import org.md2k.scheduler.datakit.DataKitManager;
@@ -30,7 +29,6 @@ import org.md2k.scheduler.scheduler.Scheduler;
 import org.md2k.scheduler.what.WhatManager;
 import org.md2k.scheduler.when.WhenManager;
 
-import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 

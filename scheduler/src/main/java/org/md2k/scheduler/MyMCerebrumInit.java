@@ -43,11 +43,13 @@ public class MyMCerebrumInit extends MCerebrumInfo {
     public void update(final Context context){
         Log.d("abc","MyMCerebrumInit -> update()");
         MCerebrum.setBackgroundService(context, ServiceScheduler.class);
+/*
         if(!Permission.hasPermission(context)){
             Intent intent = new Intent(context, ActivityPermission.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
         }
+*/
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
             // Show alert dialog to the user saying a separate permission is needed
             // Launch the settings activity if the user prefers
